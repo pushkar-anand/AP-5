@@ -1,0 +1,6 @@
+.git
+.claude
+.idea
+*.iml
+config.yaml
+*.md

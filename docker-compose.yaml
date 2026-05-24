@@ -1,0 +1,17 @@
+services:
+  ap5:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+      - ap5-data:/data
+    environment:
+      AP5_SECRET_BACKEND: file
+      AP5_DATA_DIR: /data
+      AP5_ENCRYPTION_KEY: ${AP5_ENCRYPTION_KEY}
+    command: ["serve", "--config", "/config.yaml", "--data", "/data"]
+
+volumes:
+  ap5-data:
