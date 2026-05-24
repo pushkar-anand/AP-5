@@ -32,6 +32,7 @@ func authCmd(args []string) {
 
 func authSetJN66Token(args []string) {
 	fs := flag.NewFlagSet("set-jn66-token", flag.ExitOnError)
+	configPath := fs.String("config", defaultConfigPath(), "path to config.yaml")
 	dataDir := fs.String("data", defaultDataDir(), "directory for secrets")
 	_ = fs.Parse(args)
 
@@ -41,11 +42,7 @@ func authSetJN66Token(args []string) {
 	}
 	email := fs.Arg(0)
 
-	store, err := secrets.NewStore(*dataDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open secret store: %v\n", err)
-		os.Exit(1)
-	}
+	store := openStore(*configPath, *dataDir)
 
 	token := promptSecret(fmt.Sprintf("Enter JN-66 bearer token for %s: ", email))
 
@@ -63,17 +60,7 @@ func authSetGmailCredentials(args []string) {
 	dataDir := fs.String("data", defaultDataDir(), "directory for secrets")
 	_ = fs.Parse(args)
 
-	_, err := config.Load(*configPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
-		os.Exit(1)
-	}
-
-	store, err := secrets.NewStore(*dataDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open secret store: %v\n", err)
-		os.Exit(1)
-	}
+	store := openStore(*configPath, *dataDir)
 
 	clientID := promptSecret("Enter Gmail OAuth2 client ID: ")
 	clientSecret := promptSecret("Enter Gmail OAuth2 client secret: ")
@@ -88,6 +75,22 @@ func authSetGmailCredentials(args []string) {
 	}
 
 	fmt.Println("Gmail OAuth2 credentials stored.")
+}
+
+// openStore loads the config and opens the appropriate secret store.
+func openStore(configPath, dataDir string) secrets.Store {
+	var backend, encKey string
+	if cfg, err := config.Load(configPath); err == nil {
+		backend = cfg.Secrets.Backend
+		encKey = cfg.Secrets.EncryptionKey
+	}
+
+	store, err := secrets.NewStore(dataDir, backend, encKey)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to open secret store: %v\n", err)
+		os.Exit(1)
+	}
+	return store
 }
 
 func promptSecret(prompt string) string {

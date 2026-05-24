@@ -37,6 +37,9 @@ gmail:
 log:
   level: "debug"
   format: "json"
+secrets:
+  backend: "file"
+  encryption_key: "abc123"
 `)
 
 	cfg, err := config.Load(path)
@@ -64,6 +67,12 @@ log:
 	}
 	if cfg.Log.Level != "debug" {
 		t.Errorf("log.level = %q", cfg.Log.Level)
+	}
+	if cfg.Secrets.Backend != "file" {
+		t.Errorf("secrets.backend = %q", cfg.Secrets.Backend)
+	}
+	if cfg.Secrets.EncryptionKey != "abc123" {
+		t.Errorf("secrets.encryption_key = %q", cfg.Secrets.EncryptionKey)
 	}
 }
 

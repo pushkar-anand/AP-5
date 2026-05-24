@@ -41,7 +41,7 @@ func serveCmd(args []string) {
 	)
 	slog.SetDefault(log)
 
-	secretStore, err := secrets.NewStore(*dataDir)
+	secretStore, err := secrets.NewStore(*dataDir, cfg.Secrets.Backend, cfg.Secrets.EncryptionKey)
 	if err != nil {
 		log.Error("failed to initialise secret store", slog.Any("error", err))
 		os.Exit(1)

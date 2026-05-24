@@ -19,3 +19,8 @@ gmail:
 log:
   level: "info"   # debug | info | warn | error
   format: "text"  # text | json
+
+secrets:
+  backend: "keyring"        # keyring (desktop) | file (Docker/headless)
+  encryption_key: ""        # required when backend=file; 64-char hex (32 bytes)
+                            # generate: openssl rand -hex 32

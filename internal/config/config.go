@@ -13,11 +13,20 @@ import (
 )
 
 type Config struct {
-	Server Server  `koanf:"server"`
-	JN66   JN66   `koanf:"jn66"`
-	Ollama Ollama  `koanf:"ollama"`
-	Gmail  Gmail   `koanf:"gmail"`
-	Log    Logging `koanf:"log"`
+	Server  Server  `koanf:"server"`
+	JN66    JN66    `koanf:"jn66"`
+	Ollama  Ollama  `koanf:"ollama"`
+	Gmail   Gmail   `koanf:"gmail"`
+	Log     Logging `koanf:"log"`
+	Secrets Secrets `koanf:"secrets"`
+}
+
+type Secrets struct {
+	// Backend selects the secret store: "keyring" (default, desktop) or "file" (Docker/headless).
+	Backend string `koanf:"backend"`
+	// EncryptionKey is a 64-char hex string (32 bytes) used by the file backend.
+	// Only required when backend = "file". Keep this in config.yaml (gitignored), not in source.
+	EncryptionKey string `koanf:"encryption_key"`
 }
 
 type Server struct {

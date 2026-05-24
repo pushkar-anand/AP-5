@@ -2,7 +2,6 @@ package secrets
 
 import (
 	"errors"
-	"os"
 	"strings"
 )
 
@@ -18,19 +17,13 @@ const (
 	BackendFile    = "file"
 )
 
-func NewStore(dataDir string) (Store, error) {
-	backend := strings.ToLower(os.Getenv("AP5_SECRET_BACKEND"))
-	if backend == "" {
-		backend = BackendKeyring
-	}
-
-	switch backend {
+func NewStore(dataDir, backend, encryptionKey string) (Store, error) {
+	switch strings.ToLower(backend) {
 	case BackendFile:
-		encKey := os.Getenv("AP5_ENCRYPTION_KEY")
-		if encKey == "" {
-			return nil, errors.New("secrets: AP5_ENCRYPTION_KEY must be set when using file backend")
+		if encryptionKey == "" {
+			return nil, errors.New("secrets: encryption_key must be set in config when using file backend")
 		}
-		return newEncryptedFileStore(dataDir, encKey)
+		return newEncryptedFileStore(dataDir, encryptionKey)
 	default:
 		return newKeyringStore(), nil
 	}
