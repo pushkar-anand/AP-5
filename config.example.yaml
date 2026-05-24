@@ -1,0 +1,21 @@
+server:
+  port: 8080
+  base_url: "http://localhost:8080"  # prod: https://ap-5.lab.yourdomain.dev
+
+jn66:
+  base_url: "http://localhost:8081"
+
+ollama:
+  base_url: "http://localhost:11434/v1"
+  router_model: "qwen3:14b"      # swap to qwen3:4b for faster classification
+  extractor_model: "qwen3:14b"
+
+gmail:
+  poll_interval: 60s
+  accounts:
+    - email: "your-email@gmail.com"
+    - email: "partner-email@gmail.com"
+
+log:
+  level: "info"   # debug | info | warn | error
+  format: "text"  # text | json

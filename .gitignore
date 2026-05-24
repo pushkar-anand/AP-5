@@ -25,6 +25,9 @@ go.work.sum
 # env file
 .env
 
+# local config (contains emails, URLs — use config.example.yaml as template)
+config.yaml
+
 .idea/
 AP-5.iml
 
