@@ -3,7 +3,7 @@ GO ?= go
 .PHONY: build vet test fmt
 
 build:
-	$(GO) build -o ap5 ./cmd/ap5
+	$(GO) build -o ./bin/ap5 ./cmd/ap5
 
 vet:
 	$(GO) vet ./...
@@ -13,3 +13,6 @@ test:
 
 fmt:
 	gofmt -w .
+
+run: build
+	./bin/ap5 serve --config config.yaml
