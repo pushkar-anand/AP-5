@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/pushkar-anand/ap-5/internal/llm"
@@ -98,10 +99,12 @@ func TestClassify_BodyTruncatedAt500Chars(t *testing.T) {
 	longBody := string(make([]byte, 1000))
 	_, _ = c.Classify(context.Background(), "subject", longBody)
 
-	// The prompt should contain at most 500 chars of the body
-	bodyInPrompt := longBody[:500]
-	if len(captured) > 0 && len(captured) > len(bodyInPrompt)+200 {
-		t.Error("body was not truncated to 500 chars in classify prompt")
+	// Full 1000-char body must not appear — only the first 500 chars should be in the prompt.
+	if strings.Contains(captured, longBody) {
+		t.Error("body was not truncated: full 1000-char body found in classify prompt")
+	}
+	if !strings.Contains(captured, longBody[:500]) {
+		t.Error("truncated body prefix not found in classify prompt")
 	}
 }
 
@@ -155,5 +158,83 @@ func TestExtractTransaction_ErrorResponse_ReturnsNil(t *testing.T) {
 	}
 	if txn != nil {
 		t.Errorf("expected nil transaction, got %+v", txn)
+	}
+}
+
+func TestAddKnownType_AppearsInClassifyPrompt(t *testing.T) {
+	var capturedPrompt string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req openai.ChatCompletionRequest
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if len(req.Messages) > 0 {
+			capturedPrompt = req.Messages[0].Content
+		}
+		resp := openai.ChatCompletionResponse{
+			Choices: []openai.ChatCompletionChoice{
+				{Message: openai.ChatCompletionMessage{Content: `{"type":"loan_payment_due"}`}},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	c.AddKnownType("loan_payment_due")
+
+	got, err := c.Classify(context.Background(), "Loan EMI", "Your EMI is due")
+	if err != nil {
+		t.Fatalf("Classify: %v", err)
+	}
+	if got != "loan_payment_due" {
+		t.Errorf("Classify = %q, want loan_payment_due", got)
+	}
+	if !strings.Contains(capturedPrompt, "loan_payment_due") {
+		t.Error("classify prompt did not contain the newly added known type")
+	}
+}
+
+func TestExtractWithPrompt_Success(t *testing.T) {
+	payload := `{
+		"institution": "SBI",
+		"last_four": "5678",
+		"amount_paise": 50000,
+		"merchant": "Electricity Board",
+		"date": "2026-06-01",
+		"direction": "debit"
+	}`
+	srv := mockOllamaServer(t, payload)
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+
+	customPrompt := "Extract bill payment details. Return institution, last_four, amount_paise, merchant, date, direction."
+	txn, err := c.ExtractWithPrompt(context.Background(), customPrompt, "Bill paid", "Rs 500 paid to Electricity Board")
+	if err != nil {
+		t.Fatalf("ExtractWithPrompt: %v", err)
+	}
+	if txn == nil {
+		t.Fatal("ExtractWithPrompt returned nil")
+	}
+	if txn.Institution != "SBI" {
+		t.Errorf("Institution = %q, want SBI", txn.Institution)
+	}
+	if txn.Merchant != "Electricity Board" {
+		t.Errorf("Merchant = %q, want Electricity Board", txn.Merchant)
+	}
+}
+
+func TestExtractWithPrompt_ErrorResponse_ReturnsNil(t *testing.T) {
+	srv := mockOllamaServer(t, `{"error":"cannot extract"}`)
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+
+	txn, err := c.ExtractWithPrompt(context.Background(), "custom prompt", "subject", "body")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if txn != nil {
+		t.Errorf("expected nil, got %+v", txn)
 	}
 }

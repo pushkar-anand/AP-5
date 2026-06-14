@@ -31,3 +31,4 @@ config.yaml
 .idea/
 AP-5.iml
 
+bin/

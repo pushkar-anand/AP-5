@@ -1,0 +1,60 @@
+{{template "base.html" .}}
+{{define "title"}}Rules — AP-5{{end}}
+{{define "nav"}}
+<a class="nav-link" href="/review">Queue</a>
+<a class="nav-link active" href="/rules">Rules</a>
+<a class="nav-link" href="/test">Test</a>
+{{end}}
+{{define "content"}}
+<div class="ph">
+  <span class="ph-title">Learned Rules</span>
+  <span class="ph-sub">User-taught email handlers</span>
+  {{if .Rules}}<span class="ph-count">{{len .Rules}}</span>{{end}}
+</div>
+
+{{if .Rules}}
+<table class="tbl">
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Action</th>
+      <th>Extraction Prompt</th>
+      <th>Created</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Rules}}
+    <tr>
+      <td><span class="badge badge-amber">{{.Category}}</span></td>
+      <td>
+        {{if eq .Action "import_transaction"}}
+          <span class="badge badge-green">Import</span>
+        {{else}}
+          <span class="badge badge-muted">Log</span>
+        {{end}}
+      </td>
+      <td style="max-width:340px">
+        <span style="font-size:11px;color:var(--text-dim);
+          display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+          title="{{.ExtractionPrompt}}">{{.ExtractionPrompt}}</span>
+      </td>
+      <td><time>{{.CreatedAt.Format "02 Jan 2006"}}</time></td>
+      <td>
+        <div class="row-acts">
+          <form method="POST" action="/rules/{{.Category}}/delete">
+            <button class="btn btn-red" type="submit">Delete</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="empty">
+  <div class="empty-line1">No learned rules</div>
+  <div class="empty-line2">Teach the agent by reviewing emails in the <a href="/review">queue</a>.</div>
+</div>
+{{end}}
+{{end}}

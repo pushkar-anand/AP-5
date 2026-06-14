@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
+	"sync"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -18,6 +20,9 @@ type Classifier interface {
 // Extractor extracts structured transaction data from an email.
 type Extractor interface {
 	ExtractTransaction(ctx context.Context, subject, body string) (*TransactionData, error)
+	// ExtractWithPrompt runs a caller-supplied prompt and expects TransactionData JSON back.
+	// Used by learned handlers to apply user-defined extraction instructions.
+	ExtractWithPrompt(ctx context.Context, prompt, subject, body string) (*TransactionData, error)
 }
 
 type Client struct {
@@ -26,6 +31,20 @@ type Client struct {
 	extractor      *openai.Client
 	routerModel    string
 	extractorModel string
+
+	knownTypesMu sync.RWMutex
+	knownTypes   []string
+}
+
+// defaultKnownTypes are vocabulary hints seeded into the classify prompt.
+// They guide the LLM toward consistent category names but do NOT imply a handler
+// is registered for each — only credit_card_transaction has a built-in handler.
+// Additional types become handleable when the user teaches a rule via the review UI.
+var defaultKnownTypes = []string{
+	"credit_card_transaction",
+	"bank_account_transaction",
+	"bill_payment",
+	"investment_transaction",
 }
 
 func New(log *slog.Logger, baseURL, routerModel, extractorModel string) *Client {
@@ -48,21 +67,41 @@ func NewWithHTTPClient(log *slog.Logger, baseURL, routerModel, extractorModel st
 		extractor:      c,
 		routerModel:    routerModel,
 		extractorModel: extractorModel,
+		knownTypes:     append([]string(nil), defaultKnownTypes...),
 	}
 }
 
+// AddKnownType registers a new category so it appears in the classifier prompt.
+// Safe to call from multiple goroutines; takes effect on the next Classify call.
+func (c *Client) AddKnownType(category string) {
+	c.knownTypesMu.Lock()
+	defer c.knownTypesMu.Unlock()
+	for _, t := range c.knownTypes {
+		if t == category {
+			return
+		}
+	}
+	c.knownTypes = append(c.knownTypes, category)
+}
+
 // Classify asks the router model to classify an email into a known type.
-// Returns the type string (e.g. "credit_card_transaction") or "other".
+// Returns the type string (e.g. "credit_card_transaction") or a novel snake_case label.
 func (c *Client) Classify(ctx context.Context, subject, body string) (string, error) {
 	if len(body) > 500 {
 		body = body[:500]
 	}
 
-	prompt := fmt.Sprintf(`Classify this email into exactly one category. Return JSON: {"type": "<category>"}
-Categories: credit_card_transaction, other
+	c.knownTypesMu.RLock()
+	categories := strings.Join(append(c.knownTypes, "other"), ", ")
+	c.knownTypesMu.RUnlock()
+
+	prompt := fmt.Sprintf(`Classify this email into exactly one short snake_case category.
+Known categories: %s
+If none fit, return a descriptive new category name in snake_case (e.g. "loan_payment_due").
+Return JSON: {"type": "<category>"}
 
 Subject: %s
-Body: %s`, subject, body)
+Body: %s`, categories, subject, body)
 
 	resp, err := c.router.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: c.routerModel,
@@ -109,6 +148,59 @@ If you cannot extract all required fields, return {"error": "reason"}.
 Subject: %s
 Body: %s`, subject, body)
 
+	return c.extractWithRawPrompt(ctx, prompt)
+}
+
+// ExtractWithPrompt runs a caller-supplied extraction prompt and expects TransactionData JSON back.
+// The prompt must instruct the model to return institution, last_four, amount_paise, merchant, date, direction.
+func (c *Client) ExtractWithPrompt(ctx context.Context, prompt, subject, body string) (*TransactionData, error) {
+	full := fmt.Sprintf("%s\n\nSubject: %s\nBody: %s", prompt, subject, body)
+	return c.extractWithRawPrompt(ctx, full)
+}
+
+// SuggestExtractionPrompt asks the extractor model to write a reusable extraction
+// prompt for emails similar to the one provided. The result is suitable for
+// pre-filling the "Teach New Rule" textarea in the review UI.
+func (c *Client) SuggestExtractionPrompt(ctx context.Context, subject, body string) (string, error) {
+	if len(body) > 1000 {
+		body = body[:1000]
+	}
+
+	prompt := fmt.Sprintf(`You are configuring an email-processing pipeline.
+Analyze the sample email below and write a reusable extraction prompt for an LLM.
+The extraction prompt will be used on future emails of the same type — the email content will be appended automatically, so do NOT include any email placeholder or "Email:" section in the prompt you write.
+
+The extraction prompt must instruct the LLM to return JSON with these exact fields:
+- institution: name of the bank or financial institution
+- last_four: last 4 digits of the account or card number (string)
+- amount_paise: amount in paise as an integer (e.g. 125000 for ₹1250.00)
+- merchant: merchant or payee name
+- date: transaction date in YYYY-MM-DD format
+- direction: "debit" or "credit"
+
+If the email does not contain a financial transaction, the prompt should instruct the LLM to return {"error": "reason"}.
+
+Sample email to analyse (do not reference this in the prompt you write):
+Subject: %s
+Body:
+%s
+
+Write only the extraction prompt text. Do not include any email content, placeholders, or explanation.`, subject, body)
+
+	resp, err := c.extractor.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: c.extractorModel,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleUser, Content: prompt},
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("llm: suggest prompt: %w", err)
+	}
+
+	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
+}
+
+func (c *Client) extractWithRawPrompt(ctx context.Context, prompt string) (*TransactionData, error) {
 	resp, err := c.extractor.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: c.extractorModel,
 		Messages: []openai.ChatCompletionMessage{
@@ -119,23 +211,23 @@ Body: %s`, subject, body)
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("llm: extract transaction: %w", err)
+		return nil, fmt.Errorf("llm: extract: %w", err)
 	}
 
 	content := resp.Choices[0].Message.Content
-	c.log.DebugContext(ctx, "llm extract response", slog.String("subject", subject), slog.String("raw", content))
+	c.log.DebugContext(ctx, "llm extract response", slog.String("raw", content))
 
 	var errResp struct {
 		Error string `json:"error"`
 	}
 	if err := json.Unmarshal([]byte(content), &errResp); err == nil && errResp.Error != "" {
-		c.log.DebugContext(ctx, "llm could not extract transaction", slog.String("subject", subject), slog.String("reason", errResp.Error))
+		c.log.DebugContext(ctx, "llm could not extract transaction", slog.String("reason", errResp.Error))
 		return nil, nil
 	}
 
 	var data TransactionData
 	if err := json.Unmarshal([]byte(content), &data); err != nil {
-		return nil, fmt.Errorf("llm: parse transaction response: %w", err)
+		return nil, fmt.Errorf("llm: parse extract response: %w", err)
 	}
 
 	return &data, nil

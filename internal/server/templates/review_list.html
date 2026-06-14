@@ -1,0 +1,53 @@
+{{template "base.html" .}}
+{{define "title"}}Queue — AP-5{{end}}
+{{define "nav"}}
+<a class="nav-link active" href="/review">Queue</a>
+<a class="nav-link" href="/rules">Rules</a>
+<a class="nav-link" href="/test">Test</a>
+{{end}}
+{{define "content"}}
+<div class="ph">
+  <span class="ph-title">Review Queue</span>
+  <span class="ph-sub">Unhandled emails awaiting classification</span>
+  {{if .Items}}<span class="ph-count">{{len .Items}}</span>{{end}}
+</div>
+
+{{if .Items}}
+<table class="tbl">
+  <thead>
+    <tr>
+      <th>Subject</th>
+      <th>Account</th>
+      <th>Suggested Type</th>
+      <th>Queued</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Items}}
+    <tr>
+      <td>
+        <a class="row-link" href="/review/{{.ID}}">{{.Subject}}</a>
+      </td>
+      <td style="color:var(--text-dim);font-size:11px">{{.Account}}</td>
+      <td><span class="badge badge-amber">{{.SuggestedType}}</span></td>
+      <td><time>{{.QueuedAt.Format "02 Jan 15:04"}}</time></td>
+      <td>
+        <div class="row-acts">
+          <a class="btn btn-ghost" href="/review/{{.ID}}">Review</a>
+          <form method="POST" action="/review/{{.ID}}/ignore">
+            <button class="btn btn-ghost" type="submit">Ignore</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="empty">
+  <div class="empty-line1">Queue is clear</div>
+  <div class="empty-line2">All emails are being handled. New unclassified emails will appear here.</div>
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,144 @@
+{{template "base.html" .}}
+{{define "title"}}{{.Item.Subject}} — AP-5{{end}}
+{{define "nav"}}
+<a class="nav-link active" href="/review">Queue</a>
+<a class="nav-link" href="/rules">Rules</a>
+<a class="nav-link" href="/test">Test</a>
+{{end}}
+{{define "content"}}
+<a class="back" href="/review">← Queue</a>
+
+{{if .Flash}}
+<div class="flash {{if .FlashError}}flash-err{{else}}flash-ok{{end}}">{{.Flash}}</div>
+{{end}}
+
+<div class="detail-grid">
+
+  <!-- LEFT: email info -->
+  <div>
+    <div class="section-label">Email</div>
+    <div class="card">
+      <div class="card-body">
+        <div class="meta">
+          <span class="meta-k">Subject</span>
+          <span class="meta-v" style="font-weight:700;color:var(--text-bright)">{{.Item.Subject}}</span>
+          <span class="meta-k">Account</span>
+          <span class="meta-v">{{.Item.Account}}</span>
+          <span class="meta-k">Type</span>
+          <span class="meta-v"><span class="badge badge-amber">{{.Item.SuggestedType}}</span></span>
+          <span class="meta-k">Queued</span>
+          <span class="meta-v"><time>{{.Item.QueuedAt.Format "02 Jan 2006 15:04:05"}}</time></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label" style="margin-top:20px">Body</div>
+    {{if .Item.BodyHTML}}
+    <iframe class="email-iframe" srcdoc="{{.Item.BodyHTML}}" sandbox></iframe>
+    {{else}}
+    <div class="email-body">{{.Item.Body}}</div>
+    {{end}}
+  </div>
+
+  <!-- RIGHT: actions -->
+  <div>
+    <div class="section-label">Actions</div>
+    <div class="action-set">
+
+      <!-- 01 Reclassify + Reprocess -->
+      <details class="ap ap-reprocess" open>
+        <summary>
+          <div class="ap-head">
+            <span class="ap-num">01</span>
+            <span class="ap-title">Reclassify &amp; Reprocess</span>
+            <span class="ap-hint">Wrong category?</span>
+            <span class="ap-arrow">›</span>
+          </div>
+        </summary>
+        <div class="ap-body">
+          <p style="font-size:11px;color:var(--text-dim);margin-bottom:14px;line-height:1.6">
+            LLM misclassified this email. Pick the correct existing handler and run it now.
+          </p>
+          <form method="POST" action="/review/{{.Item.ID}}/reprocess">
+            <div class="field">
+              <label class="field-label">Handler</label>
+              <select class="field-select" name="category" required>
+                {{range .RegisteredTypes}}
+                <option value="{{.}}" {{if eq . $.Item.SuggestedType}}selected{{end}}>{{.}}</option>
+                {{end}}
+              </select>
+            </div>
+            <button class="btn btn-blue" type="submit">↺ Reprocess Now</button>
+          </form>
+        </div>
+      </details>
+
+      <!-- 02 Teach -->
+      <details class="ap ap-teach">
+        <summary>
+          <div class="ap-head">
+            <span class="ap-num">02</span>
+            <span class="ap-title">Teach New Rule</span>
+            <span class="ap-hint">New email type?</span>
+            <span class="ap-arrow">›</span>
+          </div>
+        </summary>
+        <div class="ap-body">
+          <p style="font-size:11px;color:var(--text-dim);margin-bottom:14px;line-height:1.6">
+            Define how to extract and handle this email type going forward.
+            The rule is saved and applied to this email immediately.
+          </p>
+          <form method="POST" action="/review/{{.Item.ID}}/teach">
+            <div class="field">
+              <label class="field-label">Category Name</label>
+              <input class="field-input" type="text" name="category"
+                value="{{.Item.SuggestedType}}" required
+                placeholder="e.g. bank_account_transaction">
+            </div>
+            <div class="field">
+              <label class="field-label">Action</label>
+              <select class="field-select" name="action"
+                onchange="document.getElementById('teach-prompt-{{.Item.ID}}').style.display=this.value==='log_only'?'none':''">
+                <option value="import_transaction">Import transaction → JN-66</option>
+                <option value="log_only">Log only (no import)</option>
+              </select>
+            </div>
+            <div class="field" id="teach-prompt-{{.Item.ID}}">
+              <label class="field-label">Extraction Prompt</label>
+              <textarea class="field-textarea" name="extraction_prompt"
+                hx-get="/review/{{.Item.ID}}/suggest-prompt"
+                hx-trigger="load"
+                hx-swap="outerHTML"
+                placeholder="Generating suggestion…"
+                style="color:var(--text-dim)"></textarea>
+            </div>
+            <button class="btn btn-amber" type="submit">⊕ Teach &amp; Process</button>
+          </form>
+        </div>
+      </details>
+
+      <!-- 03 Ignore -->
+      <details class="ap ap-ignore">
+        <summary>
+          <div class="ap-head">
+            <span class="ap-num">03</span>
+            <span class="ap-title">Ignore</span>
+            <span class="ap-hint">Not actionable</span>
+            <span class="ap-arrow">›</span>
+          </div>
+        </summary>
+        <div class="ap-body">
+          <p style="font-size:11px;color:var(--text-dim);margin-bottom:14px;line-height:1.6">
+            Remove from queue without creating a rule. No action is taken.
+          </p>
+          <form method="POST" action="/review/{{.Item.ID}}/ignore">
+            <button class="btn btn-red" type="submit">✕ Discard</button>
+          </form>
+        </div>
+      </details>
+
+    </div>
+  </div>
+
+</div>
+{{end}}

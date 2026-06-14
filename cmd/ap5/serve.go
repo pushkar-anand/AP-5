@@ -10,19 +10,60 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"sync"
 	"syscall"
 
 	"github.com/pushkar-anand/ap-5/internal/config"
 	"github.com/pushkar-anand/ap-5/internal/gmail"
 	"github.com/pushkar-anand/ap-5/internal/handlers/creditcard"
+	"github.com/pushkar-anand/ap-5/internal/handlers/learned"
 	"github.com/pushkar-anand/ap-5/internal/jn66"
 	"github.com/pushkar-anand/ap-5/internal/llm"
+	"github.com/pushkar-anand/ap-5/internal/review"
 	"github.com/pushkar-anand/ap-5/internal/router"
+	"github.com/pushkar-anand/ap-5/internal/rules"
 	"github.com/pushkar-anand/ap-5/internal/secrets"
 	"github.com/pushkar-anand/ap-5/internal/server"
 	"github.com/pushkar-anand/ap-5/internal/state"
 	bwglogger "github.com/pushkar-anand/build-with-go/logger"
 )
+
+// accountDeps holds the per-account JN-66 resources needed to construct handlers.
+type accountDeps struct {
+	jn66Client   *jn66.Client
+	accountCache *jn66.AccountCache
+}
+
+// routerRegistry wraps per-account routers so the review server can dispatch
+// a reprocess or teach action to the right account's router.
+type routerRegistry struct {
+	mu      sync.RWMutex
+	routers map[string]*router.Router // keyed by account email
+}
+
+// RegisteredTypes returns handler categories from the lexicographically first account's router.
+// All account routers carry identical handler sets: built-in handlers are registered for every
+// account at startup, and registerLearnedRule adds new rules to all routers atomically. Picking
+// a deterministic key avoids relying on random map iteration order.
+func (rr *routerRegistry) RegisteredTypes() []string {
+	rr.mu.RLock()
+	defer rr.mu.RUnlock()
+	keys := slices.Sorted(maps.Keys(rr.routers))
+	if len(keys) == 0 {
+		return nil
+	}
+	return rr.routers[keys[0]].RegisteredTypes()
+}
+
+func (rr *routerRegistry) HandleDirect(ctx context.Context, category, account string, msg *gmail.Message) error {
+	rr.mu.RLock()
+	r, ok := rr.routers[account]
+	rr.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("no router for account %q", account)
+	}
+	return r.HandleDirect(ctx, category, account, msg)
+}
 
 func serveCmd(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
@@ -55,7 +96,24 @@ func serveCmd(args []string) {
 		os.Exit(1)
 	}
 
+	reviewQueue, err := review.NewQueue(*dataDir)
+	if err != nil {
+		log.Error("failed to initialise review queue", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	ruleStore, err := rules.NewStore(*dataDir)
+	if err != nil {
+		log.Error("failed to initialise rule store", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	llmClient := llm.New(log, cfg.Ollama.BaseURL, cfg.Ollama.RouterModel, cfg.Ollama.ExtractorModel)
+
+	// Seed the LLM classifier with categories from previously learned rules.
+	for _, rule := range ruleStore.List() {
+		llmClient.AddKnownType(rule.Category)
+	}
 
 	// Load Gmail OAuth credentials from secret store.
 	gmailClientID, err := secretStore.Get("ap5/gmail/client_id")
@@ -75,13 +133,8 @@ func serveCmd(args []string) {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Start HTTP server (OAuth callback + health).
-	srv := server.New(log, cfg.Server.Port, oauthMgr)
-	go func() {
-		if err := srv.Serve(ctx); err != nil {
-			log.Error("server stopped", slog.Any("error", err))
-		}
-	}()
+	registry := &routerRegistry{routers: make(map[string]*router.Router)}
+	allDeps := make(map[string]accountDeps) // email → deps for building learned handlers
 
 	// Start one poller per account (sorted for deterministic startup order).
 	for _, name := range slices.Sorted(maps.Keys(cfg.Accounts)) {
@@ -116,16 +169,56 @@ func serveCmd(args []string) {
 		jn66Client := jn66.NewClient(cfg.JN66.BaseURL, account.JN66Token)
 		accountCache := jn66.NewAccountCache(log, jn66Client)
 
-		ccHandler := creditcard.New(log, llmClient, accountCache, jn66Client)
+		deps := accountDeps{jn66Client: jn66Client, accountCache: accountCache}
+		allDeps[email] = deps
 
 		r := router.New(log, llmClient)
+		r.SetQueuer(reviewQueue)
+
+		// Register built-in handlers.
+		ccHandler := creditcard.New(log, llmClient, accountCache, jn66Client)
 		r.Register(creditcard.EmailType, ccHandler)
 
-		poller := gmail.NewPoller(log, email, gmailClient, stateStore, r.Route, cfg.Gmail.PollInterval)
+		// Register handlers for previously learned rules.
+		for _, rule := range ruleStore.List() {
+			h := learned.New(log, rule, llmClient, accountCache, jn66Client)
+			r.Register(rule.Category, h)
+		}
 
+		registry.mu.Lock()
+		registry.routers[email] = r
+		registry.mu.Unlock()
+
+		poller := gmail.NewPoller(log, email, gmailClient, stateStore, r.Route, cfg.Gmail.PollInterval)
 		go poller.Poll(ctx)
 		log.Info("started poller", slog.String("account", name), slog.String("email", email))
 	}
+
+	// registerLearnedRule is called by the review server when the user teaches a new rule.
+	// It registers a learned handler in every account's router and seeds the LLM classifier.
+	registerLearnedRule := server.RuleRegistrar(func(rule rules.Rule) {
+		llmClient.AddKnownType(rule.Category)
+
+		registry.mu.RLock()
+		defer registry.mu.RUnlock()
+
+		for email, r := range registry.routers {
+			deps := allDeps[email]
+			h := learned.New(log, rule, llmClient, deps.accountCache, deps.jn66Client)
+			r.Register(rule.Category, h)
+		}
+	})
+
+	// Start HTTP server.
+	srv := server.New(log, cfg.Server.Port, oauthMgr)
+	srv.WithReview(reviewQueue, ruleStore, registry, registerLearnedRule)
+	srv.WithLLM(llmClient, llmClient)
+
+	go func() {
+		if err := srv.Serve(ctx); err != nil {
+			log.Error("server stopped", slog.Any("error", err))
+		}
+	}()
 
 	<-ctx.Done()
 	log.Info("shutting down")

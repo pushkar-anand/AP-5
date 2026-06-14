@@ -13,9 +13,10 @@ import (
 
 // Message is a simplified representation of a Gmail message.
 type Message struct {
-	ID      string
-	Subject string
-	Body    string
+	ID       string
+	Subject  string
+	Body     string // plain text, used for LLM extraction
+	BodyHTML string // HTML part if present, used for display only
 }
 
 // Client wraps the Gmail API service for a single account.
@@ -80,8 +81,9 @@ func (c *Client) GetMessage(ctx context.Context, id string) (*Message, error) {
 
 	subject := headerValue(msg.Payload.Headers, "Subject")
 	body := extractBody(msg.Payload)
+	bodyHTML := extractHTMLBody(msg.Payload)
 
-	return &Message{ID: id, Subject: subject, Body: body}, nil
+	return &Message{ID: id, Subject: subject, Body: body, BodyHTML: bodyHTML}, nil
 }
 
 func headerValue(headers []*gmail.MessagePartHeader, name string) string {
@@ -114,6 +116,30 @@ func extractBody(payload *gmail.MessagePart) string {
 	for _, part := range payload.Parts {
 		if text := extractBody(part); text != "" {
 			return text
+		}
+	}
+
+	return ""
+}
+
+func extractHTMLBody(payload *gmail.MessagePart) string {
+	if payload == nil {
+		return ""
+	}
+
+	for _, part := range payload.Parts {
+		if part.MimeType == "text/html" && part.Body != nil && part.Body.Size > 0 {
+			return decodeBase64URL(part.Body.Data)
+		}
+	}
+
+	if payload.MimeType == "text/html" && payload.Body != nil && payload.Body.Size > 0 {
+		return decodeBase64URL(payload.Body.Data)
+	}
+
+	for _, part := range payload.Parts {
+		if html := extractHTMLBody(part); html != "" {
+			return html
 		}
 	}
 
