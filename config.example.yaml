@@ -14,7 +14,9 @@ gmail:
   poll_interval: 60s
   accounts:
     - email: "your-email@gmail.com"
+      jn66_token: "your-jn66-bearer-token"
     - email: "partner-email@gmail.com"
+      jn66_token: "partner-jn66-bearer-token"
 
 log:
   level: "info"   # debug | info | warn | error

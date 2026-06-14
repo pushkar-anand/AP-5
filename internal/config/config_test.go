@@ -34,6 +34,7 @@ gmail:
   poll_interval: 30s
   accounts:
     - email: "test@gmail.com"
+      jn66_token: "test-token"
 log:
   level: "debug"
   format: "json"
@@ -91,6 +92,7 @@ gmail:
   poll_interval: 60s
   accounts:
     - email: "test@gmail.com"
+      jn66_token: "test-token"
 log:
   level: "info"
   format: "text"

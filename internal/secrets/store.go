@@ -33,8 +33,3 @@ func NewStore(dataDir, backend, encryptionKey string) (Store, error) {
 func GmailTokenKey(email string) string {
 	return "ap5/gmail/" + email
 }
-
-// JN66TokenKey returns the secret store key for a JN-66 bearer token.
-func JN66TokenKey(email string) string {
-	return "ap5/jn66/" + email
-}

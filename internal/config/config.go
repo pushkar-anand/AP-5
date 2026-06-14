@@ -50,7 +50,8 @@ type Gmail struct {
 }
 
 type Account struct {
-	Email string `koanf:"email" validate:"required,email"`
+	Email     string `koanf:"email"      validate:"required,email"`
+	JN66Token string `koanf:"jn66_token"`
 }
 
 type Logging struct {

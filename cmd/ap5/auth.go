@@ -14,44 +14,17 @@ import (
 func authCmd(args []string) {
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "Usage: ap5 auth <subcommand>")
-		fmt.Fprintln(os.Stderr, "  set-jn66-token <email>    Store JN-66 bearer token for a Gmail account")
 		fmt.Fprintln(os.Stderr, "  set-gmail-credentials     Store Gmail OAuth2 client ID and secret")
 		os.Exit(1)
 	}
 
 	switch args[0] {
-	case "set-jn66-token":
-		authSetJN66Token(args[1:])
 	case "set-gmail-credentials":
 		authSetGmailCredentials(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown auth subcommand: %s\n", args[0])
 		os.Exit(1)
 	}
-}
-
-func authSetJN66Token(args []string) {
-	fs := flag.NewFlagSet("set-jn66-token", flag.ExitOnError)
-	configPath := fs.String("config", defaultConfigPath(), "path to config.yaml")
-	dataDir := fs.String("data", defaultDataDir(), "directory for secrets")
-	_ = fs.Parse(args)
-
-	if fs.NArg() < 1 {
-		fmt.Fprintln(os.Stderr, "Usage: ap5 auth set-jn66-token <email>")
-		os.Exit(1)
-	}
-	email := fs.Arg(0)
-
-	store := openStore(*configPath, *dataDir)
-
-	token := promptSecret(fmt.Sprintf("Enter JN-66 bearer token for %s: ", email))
-
-	if err := store.Set(secrets.JN66TokenKey(email), token); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to store token: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("JN-66 token stored for %s\n", email)
 }
 
 func authSetGmailCredentials(args []string) {

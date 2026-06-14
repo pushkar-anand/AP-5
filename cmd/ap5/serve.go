@@ -98,15 +98,8 @@ func serveCmd(args []string) {
 			continue
 		}
 
-		jn66Token, err := secretStore.Get(secrets.JN66TokenKey(email))
-		if err != nil {
-			if errors.Is(err, secrets.ErrNotFound) {
-				log.Error("JN-66 token not set — run: ap5 auth set-jn66-token "+email,
-					slog.String("email", email),
-				)
-				continue
-			}
-			log.Error("failed to load JN-66 token", slog.String("email", email), slog.Any("error", err))
+		if account.JN66Token == "" {
+			log.Error("jn66_token not set in config for account", slog.String("email", email))
 			continue
 		}
 
@@ -116,7 +109,7 @@ func serveCmd(args []string) {
 			continue
 		}
 
-		jn66Client := jn66.NewClient(cfg.JN66.BaseURL, jn66Token)
+		jn66Client := jn66.NewClient(cfg.JN66.BaseURL, account.JN66Token)
 		accountCache := jn66.NewAccountCache(log, jn66Client)
 
 		ccHandler := creditcard.New(log, llmClient, accountCache, jn66Client)
