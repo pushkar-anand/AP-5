@@ -13,12 +13,13 @@ import (
 )
 
 type Config struct {
-	Server  Server  `koanf:"server"`
-	JN66    JN66    `koanf:"jn66"`
-	Ollama  Ollama  `koanf:"ollama"`
-	Gmail   Gmail   `koanf:"gmail"`
-	Log     Logging `koanf:"log"`
-	Secrets Secrets `koanf:"secrets"`
+	Accounts map[string]Account `koanf:"accounts"`
+	Server   Server             `koanf:"server"`
+	JN66     JN66               `koanf:"jn66"`
+	Ollama   Ollama             `koanf:"ollama"`
+	Gmail    Gmail              `koanf:"gmail"`
+	Log      Logging            `koanf:"log"`
+	Secrets  Secrets            `koanf:"secrets"`
 }
 
 type Secrets struct {
@@ -46,7 +47,6 @@ type Ollama struct {
 
 type Gmail struct {
 	PollInterval time.Duration `koanf:"poll_interval" validate:"required"`
-	Accounts     []Account     `koanf:"accounts"      validate:"required,min=1,dive"`
 }
 
 type Account struct {

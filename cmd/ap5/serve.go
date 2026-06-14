@@ -81,31 +81,32 @@ func serveCmd(args []string) {
 		}
 	}()
 
-	// Start one poller per Gmail account.
-	for _, account := range cfg.Gmail.Accounts {
+	// Start one poller per account.
+	for name, account := range cfg.Accounts {
 		email := account.Email
 
 		ts, err := oauthMgr.TokenSource(ctx, email)
 		if err != nil {
 			if errors.Is(err, secrets.ErrNotFound) {
 				log.Info("no OAuth token — visit URL to authorise",
+					slog.String("account", name),
 					slog.String("email", email),
 					slog.String("url", oauthMgr.AuthURL(email)),
 				)
 				continue
 			}
-			log.Error("failed to load OAuth token", slog.String("email", email), slog.Any("error", err))
+			log.Error("failed to load OAuth token", slog.String("account", name), slog.String("email", email), slog.Any("error", err))
 			continue
 		}
 
 		if account.JN66Token == "" {
-			log.Error("jn66_token not set in config for account", slog.String("email", email))
+			log.Error("jn66_token not set in config", slog.String("account", name), slog.String("email", email))
 			continue
 		}
 
 		gmailClient, err := gmail.NewClient(ctx, email, ts)
 		if err != nil {
-			log.Error("failed to create Gmail client", slog.String("email", email), slog.Any("error", err))
+			log.Error("failed to create Gmail client", slog.String("account", name), slog.String("email", email), slog.Any("error", err))
 			continue
 		}
 
@@ -120,7 +121,7 @@ func serveCmd(args []string) {
 		poller := gmail.NewPoller(log, email, gmailClient, stateStore, r.Route, cfg.Gmail.PollInterval)
 
 		go poller.Poll(ctx)
-		log.Info("started poller", slog.String("email", email))
+		log.Info("started poller", slog.String("account", name), slog.String("email", email))
 	}
 
 	<-ctx.Done()
