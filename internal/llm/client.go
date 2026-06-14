@@ -36,6 +36,10 @@ type Client struct {
 	knownTypes   []string
 }
 
+// defaultKnownTypes are vocabulary hints seeded into the classify prompt.
+// They guide the LLM toward consistent category names but do NOT imply a handler
+// is registered for each — only credit_card_transaction has a built-in handler.
+// Additional types become handleable when the user teaches a rule via the review UI.
 var defaultKnownTypes = []string{
 	"credit_card_transaction",
 	"bank_account_transaction",

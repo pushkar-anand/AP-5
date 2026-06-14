@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -58,7 +59,7 @@ func (s *Server) handleReviewReprocess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = s.reviewQueue.Remove(id)
+	s.removeFromQueue(ctx, id)
 	http.Redirect(w, r, "/review", http.StatusSeeOther)
 }
 
@@ -76,8 +77,13 @@ func (s *Server) handleReviewTeach(w http.ResponseWriter, r *http.Request) {
 	extractionPrompt := r.FormValue("extraction_prompt")
 	action := r.FormValue("action")
 
-	if category == "" || extractionPrompt == "" || action == "" {
-		http.Error(w, "category, extraction_prompt, and action are required", http.StatusBadRequest)
+	if category == "" || extractionPrompt == "" {
+		http.Error(w, "category and extraction_prompt are required", http.StatusBadRequest)
+		return
+	}
+	// Validate action against the known set to prevent arbitrary strings being persisted.
+	if action != rules.ActionImportTransaction && action != rules.ActionLogOnly {
+		http.Error(w, fmt.Sprintf("action must be %q or %q", rules.ActionImportTransaction, rules.ActionLogOnly), http.StatusBadRequest)
 		return
 	}
 
@@ -93,6 +99,8 @@ func (s *Server) handleReviewTeach(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Register the new handler immediately and add the category to the classifier.
+	// Overwriting an existing built-in category is intentional: it lets the user
+	// replace the default extraction with a custom prompt for the same email type.
 	s.registerLearnedRule(rule)
 
 	// Immediately process the queued email with the new handler.
@@ -110,14 +118,24 @@ func (s *Server) handleReviewTeach(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = s.reviewQueue.Remove(id)
+	s.removeFromQueue(ctx, id)
 	http.Redirect(w, r, "/review", http.StatusSeeOther)
 }
 
 func (s *Server) handleReviewIgnore(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	id := mux.Vars(r)["id"]
-	_ = s.reviewQueue.Remove(id)
+	s.removeFromQueue(ctx, id)
 	http.Redirect(w, r, "/review", http.StatusSeeOther)
+}
+
+// removeFromQueue removes an item from the review queue and logs any persistence failure.
+// A failed remove means the email will reappear in the UI on reload — an annoyance but not data loss.
+func (s *Server) removeFromQueue(ctx context.Context, id string) {
+	if err := s.reviewQueue.Remove(id); err != nil {
+		s.log.ErrorContext(ctx, "failed to remove item from review queue — it will reappear on reload",
+			"id", id, "error", err)
+	}
 }
 
 func (s *Server) handleRulesList(w http.ResponseWriter, r *http.Request) {

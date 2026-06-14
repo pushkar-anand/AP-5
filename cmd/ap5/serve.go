@@ -41,6 +41,11 @@ type routerRegistry struct {
 	routers map[string]*router.Router // keyed by account email
 }
 
+// RegisteredTypes returns handler categories from an arbitrary account's router.
+// This relies on the invariant that all account routers always have the same handler set:
+// built-in handlers are registered identically for every account, and registerLearnedRule
+// adds new rules to all routers atomically. If the set diverges the UI may show stale data
+// but correctness of dispatch is unaffected (each router still routes its own account).
 func (rr *routerRegistry) RegisteredTypes() []string {
 	rr.mu.RLock()
 	defer rr.mu.RUnlock()

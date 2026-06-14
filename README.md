@@ -1,15 +1,18 @@
 # AP-5
 
-AP-5 is a background email agent — part of the household agent suite alongside [JN-66](https://github.com/pushkar-anand/JN-66). It monitors Gmail inboxes, detects credit card spend notification emails using a local LLM, and posts the extracted transactions to JN-66 automatically.
+AP-5 is a background email agent — part of the household agent suite alongside [JN-66](https://github.com/pushkar-anand/JN-66). It monitors Gmail inboxes, classifies emails with a local LLM, and progressively learns how to handle new email types through a web UI review-and-teach loop. Credit card transaction emails are handled out of the box; any other financial email type can be taught to the agent via the browser.
 
 Named after the [Imperial inventory droid](https://starwars.fandom.com/wiki/AP-5) from Star Wars Rebels.
 
 ## How it works
 
 1. **Poll** — every configured interval, AP-5 calls the Gmail `history.list` API for each watched account and fetches all new messages (no server-side filter).
-2. **Route** — a fast LLM call classifies each email into a type (e.g. `credit_card_transaction`) or `other`.
-3. **Extract** — a second, more accurate LLM call pulls structured transaction fields from the email body.
-4. **Import** — the transaction is posted to JN-66 (`POST /api/import`). The JN-66 account is auto-discovered or created using `(institution, last_four)` — no manual card configuration needed.
+2. **Route** — a fast LLM call classifies each email into a descriptive category (e.g. `credit_card_transaction`, `bank_account_transaction`) using a dynamic category list that grows as you teach the agent.
+3. **Handle** — if a handler is registered for that category, it runs a second, more accurate LLM call to extract structured fields and posts the result to JN-66. If no handler exists, the email is saved to a **review queue**.
+4. **Learn** — open `/review` in a browser to see queued emails. For each one you can:
+   - **Reclassify + Reprocess** — the LLM got the category wrong; pick the correct handler and reprocess now.
+   - **Teach** — write an extraction prompt, choose an action (`import_transaction` or `log_only`), and the agent handles all future emails of that type automatically.
+   - **Ignore** — discard from the queue.
 
 ## Prerequisites
 
@@ -143,19 +146,45 @@ internal/
   gmail/          # OAuth2, Gmail API client, history.list poller
   llm/            # Ollama client (Classifier + Extractor interfaces)
   router/         # classifies emails, dispatches to registered handlers
+  review/         # review queue: persists unhandled emails to review_queue.json
+  rules/          # learned rules: persists user-taught handlers to learned_rules.json
   handlers/
-    creditcard/   # extracts transaction, resolves JN-66 account, posts import
+    creditcard/   # built-in: extracts CC transaction, resolves JN-66 account, imports
+    learned/      # generic: runs user-defined extraction prompt, same import pipeline
   jn66/           # JN-66 HTTP client + in-memory account cache
-  server/         # embedded HTTP server (OAuth callback + healthz)
+  server/         # HTTP server: OAuth callback, healthz, review UI (/review, /rules)
 ```
 
-## Adding a new email type
+## Teaching the agent a new email type
+
+No code changes needed. Just let an email of the new type arrive:
+
+1. AP-5 classifies it (e.g. `bank_account_transaction`) and adds it to the review queue.
+2. Open `http://localhost:8080/review` in a browser.
+3. Click the email, write an extraction prompt like:
+
+   > Extract bank transaction details. Return JSON with fields:
+   > - `institution`: bank name (e.g. "SBI")
+   > - `last_four`: last 4 digits of the account number
+   > - `amount_paise`: amount in paise as an integer
+   > - `merchant`: payee name
+   > - `date`: YYYY-MM-DD
+   > - `direction`: "debit" or "credit"
+   >
+   > If you cannot extract all fields, return `{"error": "reason"}`.
+
+4. Choose **Import transaction to JN-66** and click **Teach & Process Now**.
+
+The agent registers the rule immediately (no restart), processes the queued email, and handles all future emails of the same type automatically. Rules survive restarts — they're persisted in `~/.config/ap5/learned_rules.json`.
+
+## Adding a new built-in handler (for developers)
+
+To ship a handler as code rather than a learned rule:
 
 1. Create `internal/handlers/<type>/handler.go` implementing `router.Handler`.
 2. Register it in `cmd/ap5/serve.go`: `r.Register("<type_string>", handler)`.
-3. Add `<type_string>` to the router prompt's category list in `internal/llm/client.go`.
 
-No changes to the router or any other package are needed.
+The LLM classifier already recognises common financial categories (`bank_account_transaction`, `bill_payment`, `investment_transaction`) as hints — no prompt changes needed unless you introduce an entirely new vocabulary term.
 
 ## License
 

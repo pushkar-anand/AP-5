@@ -108,13 +108,19 @@ func (r *Router) Route(ctx context.Context, email string, msg *gmail.Message) er
 			slog.String("type", emailType),
 		)
 		if q != nil {
-			_ = q.Add(review.Item{
+			if err := q.Add(review.Item{
 				ID:            msg.ID,
 				Account:       email,
 				Subject:       msg.Subject,
 				Body:          msg.Body,
 				SuggestedType: emailType,
-			})
+			}); err != nil {
+				r.log.ErrorContext(ctx, "failed to queue email for review — email will not appear in review UI",
+					slog.String("account", email),
+					slog.String("subject", msg.Subject),
+					slog.Any("error", err),
+				)
+			}
 		}
 		return nil
 	}
