@@ -147,9 +147,7 @@ main { max-width: 1060px; margin: 0 auto; padding: 32px 20px 72px; }
 .tbl a.row-link { color: var(--text-bright); text-decoration: none; font-weight: 700; }
 .tbl a.row-link:hover { color: var(--amber); }
 
-/* row actions only show on hover */
-.row-acts { display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
-tr:hover .row-acts { opacity: 1; }
+.row-acts { display: flex; gap: 6px; }
 
 /* ── CARD ───────────────────────────────────── */
 .card {
@@ -197,6 +195,12 @@ tr:hover .row-acts { opacity: 1; }
 }
 .email-body::-webkit-scrollbar { width: 3px; }
 .email-body::-webkit-scrollbar-thumb { background: var(--border-up); border-radius: 2px; }
+
+.email-iframe {
+  width: 100%; min-height: 260px; max-height: 480px;
+  border: 1px solid var(--border); border-radius: var(--r);
+  background: #fff;
+}
 
 /* ── ACTION PANELS (details/summary accordion) ── */
 .action-set { display: flex; flex-direction: column; gap: 8px; }
@@ -357,6 +361,7 @@ time { font-size: 11px; color: var(--text-dim); font-style: normal; }
   {{block "nav" .}}
   <a class="nav-link" href="/review">Queue</a>
   <a class="nav-link" href="/rules">Rules</a>
+  <a class="nav-link" href="/test">Test</a>
   {{end}}
   <span class="nav-spacer"></span>
   <span class="nav-status">●</span>

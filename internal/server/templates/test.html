@@ -1,0 +1,131 @@
+{{template "base.html" .}}
+{{define "title"}}Test Pipeline — AP-5{{end}}
+{{define "nav"}}
+<a class="nav-link" href="/review">Queue</a>
+<a class="nav-link" href="/rules">Rules</a>
+<a class="nav-link active" href="/test">Test</a>
+{{end}}
+{{define "content"}}
+<div class="ph">
+  <span class="ph-title">Test Pipeline</span>
+  <span class="ph-sub">Dry-run classify + extract without importing to JN-66</span>
+</div>
+
+<div class="detail-grid">
+
+  <!-- LEFT: input form -->
+  <div>
+    <div class="section-label">Email</div>
+    <form method="POST" action="/test">
+      <div class="card">
+        <div class="card-body">
+          <div class="field">
+            <label class="field-label">Subject</label>
+            <input class="field-input" type="text" name="subject" required
+              value="{{if .Result}}{{.Result.Subject}}{{end}}"
+              placeholder="Email subject line">
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label class="field-label">Body</label>
+            <textarea class="field-textarea" name="body" required style="min-height:200px"
+              placeholder="Paste the email body here">{{if .Result}}{{.Result.Body}}{{end}}</textarea>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-amber" type="submit" style="margin-top:12px">▶ Run</button>
+    </form>
+  </div>
+
+  <!-- RIGHT: result -->
+  <div>
+    <div class="section-label">Result</div>
+    {{if .Result}}
+    {{$r := .Result}}
+
+    {{if $r.Error}}
+    <div class="flash flash-err">{{$r.Error}}</div>
+    {{end}}
+
+    <div class="card">
+      <div class="card-body">
+        <div class="meta">
+
+          <span class="meta-k">Classified as</span>
+          <span class="meta-v">
+            <span class="badge badge-amber">{{$r.Category}}</span>
+            {{if $r.Handled}}
+            <span class="badge badge-green">✓ handled</span>
+            {{else}}
+            <span class="badge badge-muted">✗ no handler — would queue</span>
+            {{end}}
+          </span>
+
+          {{if $r.Handled}}
+          <span class="meta-k">Handler type</span>
+          <span class="meta-v">
+            {{if $r.BuiltIn}}
+            <span style="color:var(--text-dim);font-size:11px">Built-in (no dry-run available)</span>
+            {{else}}
+            <span style="color:var(--text-dim);font-size:11px">Learned rule</span>
+            {{end}}
+          </span>
+
+          {{if not $r.BuiltIn}}
+          <span class="meta-k">Action</span>
+          <span class="meta-v">
+            {{if eq $r.Action "import_transaction"}}
+            <span class="badge badge-green">Import → JN-66</span>
+            {{else}}
+            <span class="badge badge-muted">Log only</span>
+            {{end}}
+          </span>
+          {{end}}
+          {{end}}
+
+        </div>
+      </div>
+    </div>
+
+    {{if $r.Extracted}}
+    <div class="section-label" style="margin-top:16px">Extracted Data</div>
+    <div class="card">
+      <div class="card-body">
+        <div class="meta">
+          <span class="meta-k">Institution</span>
+          <span class="meta-v">{{$r.Extracted.Institution}}</span>
+          <span class="meta-k">Last four</span>
+          <span class="meta-v">{{$r.Extracted.LastFour}}</span>
+          <span class="meta-k">Amount</span>
+          <span class="meta-v">{{rupees $r.Extracted.AmountPaise}}</span>
+          <span class="meta-k">Merchant</span>
+          <span class="meta-v">{{$r.Extracted.Merchant}}</span>
+          <span class="meta-k">Date</span>
+          <span class="meta-v">{{$r.Extracted.Date}}</span>
+          <span class="meta-k">Direction</span>
+          <span class="meta-v">
+            {{if eq $r.Extracted.Direction "debit"}}
+            <span class="badge badge-red" style="background:var(--red-bg);color:var(--red);border-color:var(--red-bdr)">debit</span>
+            {{else}}
+            <span class="badge badge-green">credit</span>
+            {{end}}
+          </span>
+        </div>
+      </div>
+    </div>
+    {{else if and $r.Handled (not $r.BuiltIn) (not $r.Error)}}
+    <div class="empty" style="margin-top:16px">
+      <div class="empty-line1">No data extracted</div>
+      <div class="empty-line2">The LLM returned an error or empty result for this email.</div>
+    </div>
+    {{end}}
+
+    {{else}}
+    <div class="empty">
+      <div class="empty-line1">No result yet</div>
+      <div class="empty-line2">Paste an email on the left and click Run.</div>
+    </div>
+    {{end}}
+  </div>
+
+</div>
+{{end}}

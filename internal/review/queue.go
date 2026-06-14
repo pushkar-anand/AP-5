@@ -15,8 +15,9 @@ type Item struct {
 	ID            string    `json:"id"`      // Gmail message ID
 	Account       string    `json:"account"` // email address that was polled
 	Subject       string    `json:"subject"`
-	Body          string    `json:"body"`           // full body, needed for reprocessing
-	SuggestedType string    `json:"suggested_type"` // LLM's classification
+	Body          string    `json:"body"`                // plain text body, used for LLM extraction
+	BodyHTML      string    `json:"body_html,omitempty"` // HTML body, used for display only
+	SuggestedType string    `json:"suggested_type"`      // LLM's classification
 	QueuedAt      time.Time `json:"queued_at"`
 }
 

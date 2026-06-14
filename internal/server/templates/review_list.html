@@ -3,6 +3,7 @@
 {{define "nav"}}
 <a class="nav-link active" href="/review">Queue</a>
 <a class="nav-link" href="/rules">Rules</a>
+<a class="nav-link" href="/test">Test</a>
 {{end}}
 {{define "content"}}
 <div class="ph">
@@ -34,7 +35,7 @@
       <td>
         <div class="row-acts">
           <a class="btn btn-ghost" href="/review/{{.ID}}">Review</a>
-          <form method="POST" action="/review/{{.ID}}/ignore" style="display:contents">
+          <form method="POST" action="/review/{{.ID}}/ignore">
             <button class="btn btn-ghost" type="submit">Ignore</button>
           </form>
         </div>

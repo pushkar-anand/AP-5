@@ -158,6 +158,48 @@ func (c *Client) ExtractWithPrompt(ctx context.Context, prompt, subject, body st
 	return c.extractWithRawPrompt(ctx, full)
 }
 
+// SuggestExtractionPrompt asks the extractor model to write a reusable extraction
+// prompt for emails similar to the one provided. The result is suitable for
+// pre-filling the "Teach New Rule" textarea in the review UI.
+func (c *Client) SuggestExtractionPrompt(ctx context.Context, subject, body string) (string, error) {
+	if len(body) > 1000 {
+		body = body[:1000]
+	}
+
+	prompt := fmt.Sprintf(`You are configuring an email-processing pipeline.
+Analyze the sample email below and write a reusable extraction prompt for an LLM.
+The extraction prompt will be used on future emails of the same type — the email content will be appended automatically, so do NOT include any email placeholder or "Email:" section in the prompt you write.
+
+The extraction prompt must instruct the LLM to return JSON with these exact fields:
+- institution: name of the bank or financial institution
+- last_four: last 4 digits of the account or card number (string)
+- amount_paise: amount in paise as an integer (e.g. 125000 for ₹1250.00)
+- merchant: merchant or payee name
+- date: transaction date in YYYY-MM-DD format
+- direction: "debit" or "credit"
+
+If the email does not contain a financial transaction, the prompt should instruct the LLM to return {"error": "reason"}.
+
+Sample email to analyse (do not reference this in the prompt you write):
+Subject: %s
+Body:
+%s
+
+Write only the extraction prompt text. Do not include any email content, placeholders, or explanation.`, subject, body)
+
+	resp, err := c.extractor.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: c.extractorModel,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleUser, Content: prompt},
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("llm: suggest prompt: %w", err)
+	}
+
+	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
+}
+
 func (c *Client) extractWithRawPrompt(ctx context.Context, prompt string) (*TransactionData, error) {
 	resp, err := c.extractor.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: c.extractorModel,

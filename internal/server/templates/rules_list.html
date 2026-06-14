@@ -3,6 +3,7 @@
 {{define "nav"}}
 <a class="nav-link" href="/review">Queue</a>
 <a class="nav-link active" href="/rules">Rules</a>
+<a class="nav-link" href="/test">Test</a>
 {{end}}
 {{define "content"}}
 <div class="ph">
@@ -41,9 +42,8 @@
       <td><time>{{.CreatedAt.Format "02 Jan 2006"}}</time></td>
       <td>
         <div class="row-acts">
-          <form method="POST" action="/rules/{{.Category}}/delete" style="display:contents">
-            <button class="btn btn-red" type="submit"
-              onclick="return confirm('Delete rule for {{.Category}}?')">Delete</button>
+          <form method="POST" action="/rules/{{.Category}}/delete">
+            <button class="btn btn-red" type="submit">Delete</button>
           </form>
         </div>
       </td>

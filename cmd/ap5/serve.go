@@ -212,6 +212,7 @@ func serveCmd(args []string) {
 	// Start HTTP server.
 	srv := server.New(log, cfg.Server.Port, oauthMgr)
 	srv.WithReview(reviewQueue, ruleStore, registry, registerLearnedRule)
+	srv.WithLLM(llmClient, llmClient)
 
 	go func() {
 		if err := srv.Serve(ctx); err != nil {

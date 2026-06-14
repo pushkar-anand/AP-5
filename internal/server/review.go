@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"html"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -28,6 +29,33 @@ func (s *Server) handleReviewDetail(w http.ResponseWriter, r *http.Request) {
 		"Item":            item,
 		"RegisteredTypes": s.router.RegisteredTypes(),
 	})
+}
+
+// handleSuggestPrompt is called asynchronously by htmx after the review detail page loads.
+// It returns an HTML textarea fragment pre-filled with an LLM-suggested extraction prompt.
+func (s *Server) handleSuggestPrompt(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := mux.Vars(r)["id"]
+
+	item, ok := s.reviewQueue.Get(id)
+	if !ok {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	suggested := ""
+	if s.suggester != nil {
+		var err error
+		suggested, err = s.suggester.SuggestExtractionPrompt(ctx, item.Subject, item.Body)
+		if err != nil {
+			s.log.WarnContext(ctx, "failed to suggest extraction prompt", "id", id, "error", err)
+		}
+	}
+
+	const placeholder = "Extract transaction details. Return JSON with: institution, last_four, amount_paise, merchant, date, direction."
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, `<textarea class="field-textarea" name="extraction_prompt" required placeholder=%q>%s</textarea>`,
+		placeholder, html.EscapeString(suggested))
 }
 
 func (s *Server) handleReviewReprocess(w http.ResponseWriter, r *http.Request) {
@@ -77,13 +105,17 @@ func (s *Server) handleReviewTeach(w http.ResponseWriter, r *http.Request) {
 	extractionPrompt := r.FormValue("extraction_prompt")
 	action := r.FormValue("action")
 
-	if category == "" || extractionPrompt == "" {
-		http.Error(w, "category and extraction_prompt are required", http.StatusBadRequest)
+	if category == "" {
+		http.Error(w, "category is required", http.StatusBadRequest)
 		return
 	}
 	// Validate action against the known set to prevent arbitrary strings being persisted.
 	if action != rules.ActionImportTransaction && action != rules.ActionLogOnly {
 		http.Error(w, fmt.Sprintf("action must be %q or %q", rules.ActionImportTransaction, rules.ActionLogOnly), http.StatusBadRequest)
+		return
+	}
+	if action == rules.ActionImportTransaction && extractionPrompt == "" {
+		http.Error(w, "extraction_prompt is required for import_transaction action", http.StatusBadRequest)
 		return
 	}
 

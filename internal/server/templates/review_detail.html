@@ -3,6 +3,7 @@
 {{define "nav"}}
 <a class="nav-link active" href="/review">Queue</a>
 <a class="nav-link" href="/rules">Rules</a>
+<a class="nav-link" href="/test">Test</a>
 {{end}}
 {{define "content"}}
 <a class="back" href="/review">← Queue</a>
@@ -32,7 +33,11 @@
     </div>
 
     <div class="section-label" style="margin-top:20px">Body</div>
+    {{if .Item.BodyHTML}}
+    <iframe class="email-iframe" srcdoc="{{.Item.BodyHTML}}" sandbox></iframe>
+    {{else}}
     <div class="email-body">{{.Item.Body}}</div>
+    {{end}}
   </div>
 
   <!-- RIGHT: actions -->
@@ -91,16 +96,21 @@
                 placeholder="e.g. bank_account_transaction">
             </div>
             <div class="field">
-              <label class="field-label">Extraction Prompt</label>
-              <textarea class="field-textarea" name="extraction_prompt" required
-                placeholder="Extract transaction details. Return JSON:&#10;- institution: bank name&#10;- last_four: last 4 digits of account/card&#10;- amount_paise: integer (e.g. 125000 for ₹1250)&#10;- merchant: payee name&#10;- date: YYYY-MM-DD&#10;- direction: &quot;debit&quot; or &quot;credit&quot;&#10;&#10;If fields are missing return {&quot;error&quot;: &quot;reason&quot;}."></textarea>
-            </div>
-            <div class="field">
               <label class="field-label">Action</label>
-              <select class="field-select" name="action">
+              <select class="field-select" name="action"
+                onchange="document.getElementById('teach-prompt-{{.Item.ID}}').style.display=this.value==='log_only'?'none':''">
                 <option value="import_transaction">Import transaction → JN-66</option>
                 <option value="log_only">Log only (no import)</option>
               </select>
+            </div>
+            <div class="field" id="teach-prompt-{{.Item.ID}}">
+              <label class="field-label">Extraction Prompt</label>
+              <textarea class="field-textarea" name="extraction_prompt"
+                hx-get="/review/{{.Item.ID}}/suggest-prompt"
+                hx-trigger="load"
+                hx-swap="outerHTML"
+                placeholder="Generating suggestion…"
+                style="color:var(--text-dim)"></textarea>
             </div>
             <button class="btn btn-amber" type="submit">⊕ Teach &amp; Process</button>
           </form>
@@ -122,10 +132,7 @@
             Remove from queue without creating a rule. No action is taken.
           </p>
           <form method="POST" action="/review/{{.Item.ID}}/ignore">
-            <button class="btn btn-red" type="submit"
-              onclick="return confirm('Discard this email from the queue?')">
-              ✕ Discard
-            </button>
+            <button class="btn btn-red" type="submit">✕ Discard</button>
           </form>
         </div>
       </details>

@@ -113,6 +113,7 @@ func (r *Router) Route(ctx context.Context, email string, msg *gmail.Message) er
 				Account:       email,
 				Subject:       msg.Subject,
 				Body:          msg.Body,
+				BodyHTML:      msg.BodyHTML,
 				SuggestedType: emailType,
 			}); err != nil {
 				r.log.ErrorContext(ctx, "failed to queue email for review — email will not appear in review UI",
