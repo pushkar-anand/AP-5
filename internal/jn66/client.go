@@ -57,10 +57,10 @@ type importRequest struct {
 }
 
 type ImportResult struct {
-	Parsed   int `json:"parsed"`
-	Inserted int `json:"inserted"`
+	Parsed    int `json:"parsed"`
+	Inserted  int `json:"inserted"`
 	Duplicate int `json:"duplicate"`
-	Failed   int `json:"failed"`
+	Failed    int `json:"failed"`
 }
 
 // ListAccounts returns all accounts for the authenticated user.

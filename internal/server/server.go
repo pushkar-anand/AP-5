@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	bwglogger "github.com/pushkar-anand/build-with-go/logger"
 	"github.com/pushkar-anand/build-with-go/http/middleware"
 	bwgserver "github.com/pushkar-anand/build-with-go/http/server"
+	bwglogger "github.com/pushkar-anand/build-with-go/logger"
 )
 
 // OAuthExchanger handles exchanging an OAuth code for a token for a given account.
@@ -20,9 +20,9 @@ type OAuthExchanger interface {
 
 // Server is the AP-5 HTTP server handling health checks and OAuth callbacks.
 type Server struct {
-	log      *slog.Logger
-	port     int
-	oauth    OAuthExchanger
+	log   *slog.Logger
+	port  int
+	oauth OAuthExchanger
 }
 
 func New(log *slog.Logger, port int, oauth OAuthExchanger) *Server {
