@@ -36,18 +36,27 @@ func New(log *slog.Logger, llmClient llm.Extractor, accounts accountResolver, jn
 	}
 }
 
-func (h *Handler) Handle(ctx context.Context, email string, msg *gmail.Message) {
+func (h *Handler) Handle(ctx context.Context, email string, msg *gmail.Message) error {
 	log := h.log.With(slog.String("account", email), slog.String("subject", msg.Subject))
 
 	txn, err := h.llm.ExtractTransaction(ctx, msg.Subject, msg.Body)
 	if err != nil {
 		log.ErrorContext(ctx, "failed to extract transaction", slog.Any("error", err))
-		return
+		return err
 	}
 	if txn == nil {
 		log.InfoContext(ctx, "no transaction found in email")
-		return
+		return nil
 	}
+
+	log.DebugContext(ctx, "extracted transaction",
+		slog.String("institution", txn.Institution),
+		slog.String("last_four", txn.LastFour),
+		slog.String("merchant", txn.Merchant),
+		slog.String("date", txn.Date),
+		slog.String("direction", txn.Direction),
+		slog.Int64("amount_paise", txn.AmountPaise),
+	)
 
 	accountID, err := h.accounts.LookupOrCreate(ctx, txn.Institution, txn.LastFour)
 	if err != nil {
@@ -56,7 +65,7 @@ func (h *Handler) Handle(ctx context.Context, email string, msg *gmail.Message) 
 			slog.String("last_four", txn.LastFour),
 			slog.Any("error", err),
 		)
-		return
+		return err
 	}
 
 	result, err := h.jn66.Import(ctx, accountID, []jn66.ImportTransaction{
@@ -69,7 +78,7 @@ func (h *Handler) Handle(ctx context.Context, email string, msg *gmail.Message) 
 	})
 	if err != nil {
 		log.ErrorContext(ctx, "failed to import transaction to JN-66", slog.Any("error", err))
-		return
+		return err
 	}
 
 	log.InfoContext(ctx, "transaction recorded",
@@ -80,4 +89,5 @@ func (h *Handler) Handle(ctx context.Context, email string, msg *gmail.Message) 
 		slog.Int("inserted", result.Inserted),
 		slog.Int("duplicate", result.Duplicate),
 	)
+	return nil
 }

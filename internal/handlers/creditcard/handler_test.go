@@ -60,7 +60,9 @@ func TestHandle_SuccessfulTransaction(t *testing.T) {
 	importer := &mockImporter{result: &jn66.ImportResult{Inserted: 1}}
 
 	h := newHandler(extractor, resolver, importer)
-	h.Handle(context.Background(), "user@gmail.com", &gmail.Message{Subject: "HDFC Alert", Body: "Spent Rs 1250"})
+	if err := h.Handle(context.Background(), "user@gmail.com", &gmail.Message{Subject: "HDFC Alert", Body: "Spent Rs 1250"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if len(resolver.calls) != 1 {
 		t.Errorf("LookupOrCreate called %d times, want 1", len(resolver.calls))
@@ -79,7 +81,9 @@ func TestHandle_ExtractorReturnsNil_NoImport(t *testing.T) {
 	importer := &mockImporter{}
 
 	h := newHandler(extractor, resolver, importer)
-	h.Handle(context.Background(), "user@gmail.com", &gmail.Message{Subject: "OTP"})
+	if err := h.Handle(context.Background(), "user@gmail.com", &gmail.Message{Subject: "OTP"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if len(importer.calls) != 0 {
 		t.Errorf("Import should not be called when extractor returns nil, called %d times", len(importer.calls))
@@ -92,7 +96,9 @@ func TestHandle_ExtractorError_NoImport(t *testing.T) {
 	importer := &mockImporter{}
 
 	h := newHandler(extractor, resolver, importer)
-	h.Handle(context.Background(), "user@gmail.com", &gmail.Message{Subject: "HDFC Alert"})
+	if err := h.Handle(context.Background(), "user@gmail.com", &gmail.Message{Subject: "HDFC Alert"}); err == nil {
+		t.Error("expected error when extractor fails")
+	}
 
 	if len(importer.calls) != 0 {
 		t.Error("Import should not be called when extractor errors")
@@ -108,7 +114,9 @@ func TestHandle_AccountResolverError_NoImport(t *testing.T) {
 	importer := &mockImporter{}
 
 	h := newHandler(extractor, resolver, importer)
-	h.Handle(context.Background(), "user@gmail.com", &gmail.Message{Subject: "Alert"})
+	if err := h.Handle(context.Background(), "user@gmail.com", &gmail.Message{Subject: "Alert"}); err == nil {
+		t.Error("expected error when account resolver fails")
+	}
 
 	if len(importer.calls) != 0 {
 		t.Error("Import should not be called when account resolver errors")
@@ -125,6 +133,7 @@ func TestHandle_ImportError_DoesNotPanic(t *testing.T) {
 
 	h := newHandler(extractor, resolver, importer)
 
-	// Should log the error and return gracefully without panic
-	h.Handle(context.Background(), "user@gmail.com", &gmail.Message{Subject: "ICICI Alert"})
+	if err := h.Handle(context.Background(), "user@gmail.com", &gmail.Message{Subject: "ICICI Alert"}); err == nil {
+		t.Error("expected error when import fails")
+	}
 }

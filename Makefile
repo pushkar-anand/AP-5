@@ -3,7 +3,7 @@ GO ?= go
 .PHONY: build vet test fmt
 
 build:
-	$(GO) build ./...
+	$(GO) build -o ap5 ./cmd/ap5
 
 vet:
 	$(GO) vet ./...

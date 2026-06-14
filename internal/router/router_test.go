@@ -23,8 +23,9 @@ type mockHandler struct {
 	calls []*gmail.Message
 }
 
-func (m *mockHandler) Handle(_ context.Context, _ string, msg *gmail.Message) {
+func (m *mockHandler) Handle(_ context.Context, _ string, msg *gmail.Message) error {
 	m.calls = append(m.calls, msg)
+	return nil
 }
 
 func newRouter(classifier *mockClassifier) *router.Router {
@@ -70,8 +71,11 @@ func TestRoute_ClassifierError_DropsMessage(t *testing.T) {
 	r := newRouter(classifier)
 	r.Register("credit_card_transaction", h)
 
-	r.Route(context.Background(), "user@gmail.com", &gmail.Message{Subject: "HDFC Alert"})
+	err := r.Route(context.Background(), "user@gmail.com", &gmail.Message{Subject: "HDFC Alert"})
 
+	if err == nil {
+		t.Error("Route should return error when classifier fails")
+	}
 	if len(h.calls) != 0 {
 		t.Errorf("handler should not be called on classifier error, called %d times", len(h.calls))
 	}

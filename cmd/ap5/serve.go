@@ -55,7 +55,7 @@ func serveCmd(args []string) {
 		os.Exit(1)
 	}
 
-	llmClient := llm.New(cfg.Ollama.BaseURL, cfg.Ollama.RouterModel, cfg.Ollama.ExtractorModel)
+	llmClient := llm.New(log, cfg.Ollama.BaseURL, cfg.Ollama.RouterModel, cfg.Ollama.ExtractorModel)
 
 	// Load Gmail OAuth credentials from secret store.
 	gmailClientID, err := secretStore.Get("ap5/gmail/client_id")

@@ -3,6 +3,7 @@ package llm_test
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,7 +27,7 @@ func mockOllamaServer(t *testing.T, responseContent string) *httptest.Server {
 
 func newTestClient(t *testing.T, srv *httptest.Server) *llm.Client {
 	t.Helper()
-	return llm.NewWithHTTPClient(srv.URL+"/v1", "router-model", "extractor-model", srv.Client())
+	return llm.NewWithHTTPClient(slog.Default(), srv.URL+"/v1", "router-model", "extractor-model", srv.Client())
 }
 
 func TestClassify_CreditCard(t *testing.T) {
