@@ -12,8 +12,8 @@ import (
 
 // Item is an email that arrived but had no registered handler — queued for user review.
 type Item struct {
-	ID            string    `json:"id"`             // Gmail message ID
-	Account       string    `json:"account"`        // email address that was polled
+	ID            string    `json:"id"`      // Gmail message ID
+	Account       string    `json:"account"` // email address that was polled
 	Subject       string    `json:"subject"`
 	Body          string    `json:"body"`           // full body, needed for reprocessing
 	SuggestedType string    `json:"suggested_type"` // LLM's classification

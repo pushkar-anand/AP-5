@@ -36,12 +36,12 @@ type OAuthExchanger interface {
 
 // Server is the AP-5 HTTP server handling health checks, OAuth callbacks, and the review UI.
 type Server struct {
-	log             *slog.Logger
-	port            int
-	oauth           OAuthExchanger
-	reviewQueue     ReviewQueue
-	ruleStore       RuleStore
-	router          HandlerRouter
+	log                 *slog.Logger
+	port                int
+	oauth               OAuthExchanger
+	reviewQueue         ReviewQueue
+	ruleStore           RuleStore
+	router              HandlerRouter
 	registerLearnedRule RuleRegistrar
 }
 
