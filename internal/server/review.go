@@ -145,8 +145,12 @@ func (s *Server) handleRulesList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRulesDelete(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	category := mux.Vars(r)["category"]
-	_ = s.ruleStore.Delete(category)
+	if err := s.ruleStore.Delete(category); err != nil {
+		s.log.ErrorContext(ctx, "failed to delete rule — it will reappear on restart",
+			"category", category, "error", err)
+	}
 	http.Redirect(w, r, "/rules", http.StatusSeeOther)
 }
 

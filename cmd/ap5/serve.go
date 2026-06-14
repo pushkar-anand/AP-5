@@ -41,18 +41,18 @@ type routerRegistry struct {
 	routers map[string]*router.Router // keyed by account email
 }
 
-// RegisteredTypes returns handler categories from an arbitrary account's router.
-// This relies on the invariant that all account routers always have the same handler set:
-// built-in handlers are registered identically for every account, and registerLearnedRule
-// adds new rules to all routers atomically. If the set diverges the UI may show stale data
-// but correctness of dispatch is unaffected (each router still routes its own account).
+// RegisteredTypes returns handler categories from the lexicographically first account's router.
+// All account routers carry identical handler sets: built-in handlers are registered for every
+// account at startup, and registerLearnedRule adds new rules to all routers atomically. Picking
+// a deterministic key avoids relying on random map iteration order.
 func (rr *routerRegistry) RegisteredTypes() []string {
 	rr.mu.RLock()
 	defer rr.mu.RUnlock()
-	for _, r := range rr.routers {
-		return r.RegisteredTypes()
+	keys := slices.Sorted(maps.Keys(rr.routers))
+	if len(keys) == 0 {
+		return nil
 	}
-	return nil
+	return rr.routers[keys[0]].RegisteredTypes()
 }
 
 func (rr *routerRegistry) HandleDirect(ctx context.Context, category, account string, msg *gmail.Message) error {
