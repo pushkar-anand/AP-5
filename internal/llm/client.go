@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/sashabaranov/go-openai"
@@ -20,18 +21,19 @@ type Extractor interface {
 }
 
 type Client struct {
+	log            *slog.Logger
 	router         *openai.Client
 	extractor      *openai.Client
 	routerModel    string
 	extractorModel string
 }
 
-func New(baseURL, routerModel, extractorModel string) *Client {
-	return NewWithHTTPClient(baseURL, routerModel, extractorModel, nil)
+func New(log *slog.Logger, baseURL, routerModel, extractorModel string) *Client {
+	return NewWithHTTPClient(log, baseURL, routerModel, extractorModel, nil)
 }
 
 // NewWithHTTPClient creates a Client with a custom HTTP client — used in tests.
-func NewWithHTTPClient(baseURL, routerModel, extractorModel string, httpClient *http.Client) *Client {
+func NewWithHTTPClient(log *slog.Logger, baseURL, routerModel, extractorModel string, httpClient *http.Client) *Client {
 	cfg := openai.DefaultConfig("ollama")
 	cfg.BaseURL = baseURL
 	if httpClient != nil {
@@ -41,6 +43,7 @@ func NewWithHTTPClient(baseURL, routerModel, extractorModel string, httpClient *
 	c := openai.NewClientWithConfig(cfg)
 
 	return &Client{
+		log:            log,
 		router:         c,
 		extractor:      c,
 		routerModel:    routerModel,
@@ -74,10 +77,13 @@ Body: %s`, subject, body)
 		return "", fmt.Errorf("llm: classify: %w", err)
 	}
 
+	content := resp.Choices[0].Message.Content
+	c.log.DebugContext(ctx, "llm classify response", slog.String("subject", subject), slog.String("raw", content))
+
 	var result struct {
 		Type string `json:"type"`
 	}
-	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &result); err != nil {
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
 		return "other", nil
 	}
 
@@ -117,11 +123,13 @@ Body: %s`, subject, body)
 	}
 
 	content := resp.Choices[0].Message.Content
+	c.log.DebugContext(ctx, "llm extract response", slog.String("subject", subject), slog.String("raw", content))
 
 	var errResp struct {
 		Error string `json:"error"`
 	}
 	if err := json.Unmarshal([]byte(content), &errResp); err == nil && errResp.Error != "" {
+		c.log.DebugContext(ctx, "llm could not extract transaction", slog.String("subject", subject), slog.String("reason", errResp.Error))
 		return nil, nil
 	}
 

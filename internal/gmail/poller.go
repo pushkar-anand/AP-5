@@ -11,7 +11,8 @@ import (
 )
 
 // MessageHandler is called for each new email message received.
-type MessageHandler func(ctx context.Context, email string, msg *Message)
+// Returning a non-nil error prevents the history cursor from advancing, causing re-delivery on the next poll.
+type MessageHandler func(ctx context.Context, email string, msg *Message) error
 
 // Poller polls Gmail for new messages using the history API.
 type Poller struct {
@@ -82,19 +83,27 @@ func (p *Poller) poll(ctx context.Context) {
 		return
 	}
 
-	if latestID > 0 {
-		if err := p.state.SetHistoryID(p.email, fmt.Sprintf("%d", latestID)); err != nil {
-			p.log.ErrorContext(ctx, "failed to save history ID", slog.Any("error", err))
-		}
-	}
+	p.log.DebugContext(ctx, "poll complete", slog.Int("new_messages", len(ids)))
 
+	allOK := true
 	for _, id := range ids {
 		msg, err := p.client.GetMessage(ctx, id)
 		if err != nil {
 			p.log.ErrorContext(ctx, "failed to fetch message", slog.String("id", id), slog.Any("error", err))
+			allOK = false
 			continue
 		}
-		p.handler(ctx, p.email, msg)
+		p.log.DebugContext(ctx, "processing message", slog.String("id", msg.ID), slog.String("subject", msg.Subject))
+		if err := p.handler(ctx, p.email, msg); err != nil {
+			p.log.DebugContext(ctx, "message handler failed", slog.String("id", msg.ID), slog.String("subject", msg.Subject), slog.Any("error", err))
+			allOK = false
+		}
+	}
+
+	if allOK && latestID > 0 {
+		if err := p.state.SetHistoryID(p.email, fmt.Sprintf("%d", latestID)); err != nil {
+			p.log.ErrorContext(ctx, "failed to save history ID", slog.Any("error", err))
+		}
 	}
 }
 
