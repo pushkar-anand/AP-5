@@ -54,11 +54,9 @@ ollama pull qwen3:4b    # optional: use for router_model to save VRAM
 ```bash
 # Gmail OAuth credentials (client ID + secret from Google Cloud Console)
 ap5 auth set-gmail-credentials
-
-# JN-66 bearer token (one per monitored Gmail account)
-ap5 auth set-jn66-token your-email@gmail.com
-ap5 auth set-jn66-token partner-email@gmail.com
 ```
+
+JN-66 bearer tokens live in `config.yaml` under each account entry — no separate command needed.
 
 ### 5. Run
 
@@ -78,9 +76,8 @@ $EDITOR config.yaml   # set secrets.backend: file, secrets.encryption_key: <64-c
 # 2. Start
 docker compose up -d
 
-# 3. Store secrets (first run only)
+# 3. Store Gmail OAuth credentials (first run only)
 docker exec -it ap5 ap5 auth set-gmail-credentials --config /config.yaml --data /data
-docker exec -it ap5 ap5 auth set-jn66-token your-email@gmail.com --config /config.yaml --data /data
 
 # 4. Authorize Gmail accounts — copy the URL from docker logs and open in browser
 docker logs ap5
@@ -107,11 +104,16 @@ ollama:
   router_model: "qwen3:4b"      # classification — smaller/faster is fine
   extractor_model: "qwen3:14b"  # extraction — larger = more accurate
 
+accounts:
+  personal:
+    email: "your-email@gmail.com"
+    jn66_token: "your-jn66-bearer-token"
+  partner:
+    email: "partner-email@gmail.com"
+    jn66_token: "partner-jn66-bearer-token"
+
 gmail:
   poll_interval: 60s
-  accounts:
-    - email: "your-email@gmail.com"
-    - email: "partner-email@gmail.com"
 
 log:
   level: "info"    # debug | info | warn | error
@@ -127,6 +129,7 @@ Any config value can be overridden with an `AP5_` environment variable using `__
 ```bash
 AP5_SERVER__PORT=9090
 AP5_SECRETS__ENCRYPTION_KEY=abc...
+AP5_ACCOUNTS__PERSONAL__JN66_TOKEN=your-token
 ```
 
 ## Project structure

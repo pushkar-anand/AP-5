@@ -6,8 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 
 	"github.com/pushkar-anand/ap-5/internal/config"
@@ -81,42 +83,37 @@ func serveCmd(args []string) {
 		}
 	}()
 
-	// Start one poller per Gmail account.
-	for _, account := range cfg.Gmail.Accounts {
+	// Start one poller per account (sorted for deterministic startup order).
+	for _, name := range slices.Sorted(maps.Keys(cfg.Accounts)) {
+		account := cfg.Accounts[name]
 		email := account.Email
 
 		ts, err := oauthMgr.TokenSource(ctx, email)
 		if err != nil {
 			if errors.Is(err, secrets.ErrNotFound) {
 				log.Info("no OAuth token — visit URL to authorise",
+					slog.String("account", name),
 					slog.String("email", email),
 					slog.String("url", oauthMgr.AuthURL(email)),
 				)
 				continue
 			}
-			log.Error("failed to load OAuth token", slog.String("email", email), slog.Any("error", err))
+			log.Error("failed to load OAuth token", slog.String("account", name), slog.String("email", email), slog.Any("error", err))
 			continue
 		}
 
-		jn66Token, err := secretStore.Get(secrets.JN66TokenKey(email))
-		if err != nil {
-			if errors.Is(err, secrets.ErrNotFound) {
-				log.Error("JN-66 token not set — run: ap5 auth set-jn66-token "+email,
-					slog.String("email", email),
-				)
-				continue
-			}
-			log.Error("failed to load JN-66 token", slog.String("email", email), slog.Any("error", err))
+		if account.JN66Token == "" {
+			log.Error("jn66_token not set in config", slog.String("account", name), slog.String("email", email))
 			continue
 		}
 
 		gmailClient, err := gmail.NewClient(ctx, email, ts)
 		if err != nil {
-			log.Error("failed to create Gmail client", slog.String("email", email), slog.Any("error", err))
+			log.Error("failed to create Gmail client", slog.String("account", name), slog.String("email", email), slog.Any("error", err))
 			continue
 		}
 
-		jn66Client := jn66.NewClient(cfg.JN66.BaseURL, jn66Token)
+		jn66Client := jn66.NewClient(cfg.JN66.BaseURL, account.JN66Token)
 		accountCache := jn66.NewAccountCache(log, jn66Client)
 
 		ccHandler := creditcard.New(log, llmClient, accountCache, jn66Client)
@@ -127,7 +124,7 @@ func serveCmd(args []string) {
 		poller := gmail.NewPoller(log, email, gmailClient, stateStore, r.Route, cfg.Gmail.PollInterval)
 
 		go poller.Poll(ctx)
-		log.Info("started poller", slog.String("email", email))
+		log.Info("started poller", slog.String("account", name), slog.String("email", email))
 	}
 
 	<-ctx.Done()

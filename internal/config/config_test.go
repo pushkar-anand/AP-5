@@ -30,10 +30,12 @@ ollama:
   base_url: "http://localhost:11434/v1"
   router_model: "qwen3:4b"
   extractor_model: "qwen3:14b"
+accounts:
+  personal:
+    email: "test@gmail.com"
+    jn66_token: "test-token"
 gmail:
   poll_interval: 30s
-  accounts:
-    - email: "test@gmail.com"
 log:
   level: "debug"
   format: "json"
@@ -62,8 +64,11 @@ secrets:
 	if cfg.Gmail.PollInterval != 30*time.Second {
 		t.Errorf("gmail.poll_interval = %v, want 30s", cfg.Gmail.PollInterval)
 	}
-	if len(cfg.Gmail.Accounts) != 1 || cfg.Gmail.Accounts[0].Email != "test@gmail.com" {
-		t.Errorf("gmail.accounts = %+v", cfg.Gmail.Accounts)
+	if len(cfg.Accounts) != 1 {
+		t.Errorf("accounts len = %d, want 1", len(cfg.Accounts))
+	}
+	if a := cfg.Accounts["personal"]; a.Email != "test@gmail.com" || a.JN66Token != "test-token" {
+		t.Errorf("accounts[personal] = %+v", a)
 	}
 	if cfg.Log.Level != "debug" {
 		t.Errorf("log.level = %q", cfg.Log.Level)
@@ -87,10 +92,12 @@ ollama:
   base_url: "http://localhost:11434/v1"
   router_model: "qwen3:14b"
   extractor_model: "qwen3:14b"
+accounts:
+  personal:
+    email: "test@gmail.com"
+    jn66_token: "test-token"
 gmail:
   poll_interval: 60s
-  accounts:
-    - email: "test@gmail.com"
 log:
   level: "info"
   format: "text"

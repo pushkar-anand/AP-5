@@ -10,11 +10,16 @@ ollama:
   router_model: "qwen3:14b"      # swap to qwen3:4b for faster classification
   extractor_model: "qwen3:14b"
 
+accounts:
+  personal:
+    email: "your-email@gmail.com"
+    jn66_token: "your-jn66-bearer-token"
+  partner:
+    email: "partner-email@gmail.com"
+    jn66_token: "partner-jn66-bearer-token"
+
 gmail:
   poll_interval: 60s
-  accounts:
-    - email: "your-email@gmail.com"
-    - email: "partner-email@gmail.com"
 
 log:
   level: "info"   # debug | info | warn | error
