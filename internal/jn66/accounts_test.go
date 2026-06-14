@@ -8,13 +8,13 @@ import (
 )
 
 type mockAccountsAPI struct {
-	accounts      []Account
-	createAccount *Account
+	accounts       []Account
+	createAccount  *Account
 	createConflict bool
-	createErr     error
-	listErr       error
-	listCalls     int
-	createCalls   int
+	createErr      error
+	listErr        error
+	listCalls      int
+	createCalls    int
 }
 
 func (m *mockAccountsAPI) ListAccounts(_ context.Context) ([]Account, error) {

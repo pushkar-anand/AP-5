@@ -8,9 +8,9 @@ import (
 
 func TestDecodeBase64URL(t *testing.T) {
 	cases := []struct {
-		name    string
-		input   string
-		want    string
+		name  string
+		input string
+		want  string
 	}{
 		{
 			name:  "standard base64url encoded",
@@ -56,7 +56,7 @@ func TestHeaderValue(t *testing.T) {
 		want string
 	}{
 		{"Subject", "Hello"},
-		{"subject", "Hello"},   // case-insensitive
+		{"subject", "Hello"}, // case-insensitive
 		{"SUBJECT", "Hello"},
 		{"From", "sender@example.com"},
 		{"Missing", ""},

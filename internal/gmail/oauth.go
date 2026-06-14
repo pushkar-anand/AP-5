@@ -59,11 +59,11 @@ func (m *OAuthManager) TokenSource(ctx context.Context, email string) (oauth2.To
 
 	// Wrap to persist refreshed tokens back to the store.
 	return &persistingTokenSource{
-		email:      email,
-		inner:      ts,
-		manager:    m,
-		ctx:        ctx,
-		lastToken:  token,
+		email:     email,
+		inner:     ts,
+		manager:   m,
+		ctx:       ctx,
+		lastToken: token,
 	}, nil
 }
 

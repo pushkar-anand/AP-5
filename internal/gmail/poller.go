@@ -15,11 +15,11 @@ type MessageHandler func(ctx context.Context, email string, msg *Message)
 
 // Poller polls Gmail for new messages using the history API.
 type Poller struct {
-	log     *slog.Logger
-	email   string
-	client  *Client
-	state   *state.Store
-	handler MessageHandler
+	log      *slog.Logger
+	email    string
+	client   *Client
+	state    *state.Store
+	handler  MessageHandler
 	interval time.Duration
 }
 
