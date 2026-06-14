@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"time"
@@ -13,20 +15,46 @@ import (
 	bwglogger "github.com/pushkar-anand/build-with-go/logger"
 )
 
+//go:embed templates
+var templateFS embed.FS
+
+var tmpl = template.Must(
+	template.ParseFS(templateFS, "templates/base.html", "templates/*.html"),
+)
+
+func renderTemplate(w http.ResponseWriter, name string, data any) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {
+		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
+	}
+}
+
 // OAuthExchanger handles exchanging an OAuth code for a token for a given account.
 type OAuthExchanger interface {
 	Exchange(ctx context.Context, email, code string) error
 }
 
-// Server is the AP-5 HTTP server handling health checks and OAuth callbacks.
+// Server is the AP-5 HTTP server handling health checks, OAuth callbacks, and the review UI.
 type Server struct {
-	log   *slog.Logger
-	port  int
-	oauth OAuthExchanger
+	log             *slog.Logger
+	port            int
+	oauth           OAuthExchanger
+	reviewQueue     ReviewQueue
+	ruleStore       RuleStore
+	router          HandlerRouter
+	registerLearnedRule RuleRegistrar
 }
 
 func New(log *slog.Logger, port int, oauth OAuthExchanger) *Server {
 	return &Server{log: log, port: port, oauth: oauth}
+}
+
+// WithReview attaches the review queue, rule store, router, and rule-registration callback.
+func (s *Server) WithReview(q ReviewQueue, rs RuleStore, r HandlerRouter, reg RuleRegistrar) {
+	s.reviewQueue = q
+	s.ruleStore = rs
+	s.router = r
+	s.registerLearnedRule = reg
 }
 
 // NewRouter builds the mux with all routes registered — extracted for testability.
@@ -47,6 +75,16 @@ func (s *Server) Serve(ctx context.Context) error {
 
 	r.HandleFunc("/healthz", s.handleHealth).Methods(http.MethodGet)
 	r.HandleFunc("/auth/callback", s.handleOAuthCallback).Methods(http.MethodGet)
+
+	if s.reviewQueue != nil {
+		r.HandleFunc("/review", s.handleReviewList).Methods(http.MethodGet)
+		r.HandleFunc("/review/{id}", s.handleReviewDetail).Methods(http.MethodGet)
+		r.HandleFunc("/review/{id}/reprocess", s.handleReviewReprocess).Methods(http.MethodPost)
+		r.HandleFunc("/review/{id}/teach", s.handleReviewTeach).Methods(http.MethodPost)
+		r.HandleFunc("/review/{id}/ignore", s.handleReviewIgnore).Methods(http.MethodPost)
+		r.HandleFunc("/rules", s.handleRulesList).Methods(http.MethodGet)
+		r.HandleFunc("/rules/{category}/delete", s.handleRulesDelete).Methods(http.MethodPost)
+	}
 
 	srv := bwgserver.New(
 		r,

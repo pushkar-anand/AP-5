@@ -1,0 +1,35 @@
+{{template "base.html" .}}
+{{define "title"}}Learned Rules — AP-5{{end}}
+{{define "content"}}
+<h1>Learned Rules <span class="badge">{{len .Rules}}</span></h1>
+{{if .Rules}}
+<table>
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Action</th>
+      <th>Created</th>
+      <th>Extraction Prompt</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Rules}}
+    <tr>
+      <td><span class="badge">{{.Category}}</span></td>
+      <td>{{.Action}}</td>
+      <td class="time">{{.CreatedAt.Format "2006-01-02"}}</td>
+      <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{.ExtractionPrompt}}">{{.ExtractionPrompt}}</td>
+      <td>
+        <form method="POST" action="/rules/{{.Category}}/delete" style="display:inline">
+          <button class="btn btn-danger" type="submit" onclick="return confirm('Delete rule for {{.Category}}?')">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="empty">No learned rules yet. Use the <a href="/review">review queue</a> to teach the agent.</div>
+{{end}}
+{{end}}

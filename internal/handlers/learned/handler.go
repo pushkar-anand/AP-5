@@ -1,4 +1,4 @@
-package creditcard
+package learned
 
 import (
 	"context"
@@ -7,12 +7,11 @@ import (
 	"github.com/pushkar-anand/ap-5/internal/gmail"
 	"github.com/pushkar-anand/ap-5/internal/jn66"
 	"github.com/pushkar-anand/ap-5/internal/llm"
+	"github.com/pushkar-anand/ap-5/internal/rules"
 )
 
-const EmailType = "credit_card_transaction"
-
 type extractor interface {
-	ExtractTransaction(ctx context.Context, subject, body string) (*llm.TransactionData, error)
+	ExtractWithPrompt(ctx context.Context, prompt, subject, body string) (*llm.TransactionData, error)
 }
 
 type accountResolver interface {
@@ -23,17 +22,19 @@ type transactionImporter interface {
 	Import(ctx context.Context, accountID string, txns []jn66.ImportTransaction) (*jn66.ImportResult, error)
 }
 
-// Handler processes credit card transaction emails and records them in JN-66.
+// Handler processes emails using a user-taught extraction rule.
 type Handler struct {
 	log      *slog.Logger
+	rule     rules.Rule
 	llm      extractor
 	accounts accountResolver
 	jn66     transactionImporter
 }
 
-func New(log *slog.Logger, llmClient extractor, accounts accountResolver, jn66Client transactionImporter) *Handler {
+func New(log *slog.Logger, rule rules.Rule, llmClient extractor, accounts accountResolver, jn66Client transactionImporter) *Handler {
 	return &Handler{
 		log:      log,
+		rule:     rule,
 		llm:      llmClient,
 		accounts: accounts,
 		jn66:     jn66Client,
@@ -41,19 +42,28 @@ func New(log *slog.Logger, llmClient extractor, accounts accountResolver, jn66Cl
 }
 
 func (h *Handler) Handle(ctx context.Context, email string, msg *gmail.Message) error {
-	log := h.log.With(slog.String("account", email), slog.String("subject", msg.Subject))
+	log := h.log.With(
+		slog.String("account", email),
+		slog.String("subject", msg.Subject),
+		slog.String("category", h.rule.Category),
+	)
 
-	txn, err := h.llm.ExtractTransaction(ctx, msg.Subject, msg.Body)
-	if err != nil {
-		log.ErrorContext(ctx, "failed to extract transaction", slog.Any("error", err))
-		return err
-	}
-	if txn == nil {
-		log.InfoContext(ctx, "no transaction found in email")
+	if h.rule.Action == rules.ActionLogOnly {
+		log.InfoContext(ctx, "learned handler: log-only action, email noted")
 		return nil
 	}
 
-	log.DebugContext(ctx, "extracted transaction",
+	txn, err := h.llm.ExtractWithPrompt(ctx, h.rule.ExtractionPrompt, msg.Subject, msg.Body)
+	if err != nil {
+		log.ErrorContext(ctx, "learned handler: extraction failed", slog.Any("error", err))
+		return err
+	}
+	if txn == nil {
+		log.InfoContext(ctx, "learned handler: no data extracted from email")
+		return nil
+	}
+
+	log.DebugContext(ctx, "learned handler: extracted data",
 		slog.String("institution", txn.Institution),
 		slog.String("last_four", txn.LastFour),
 		slog.String("merchant", txn.Merchant),
@@ -64,7 +74,7 @@ func (h *Handler) Handle(ctx context.Context, email string, msg *gmail.Message) 
 
 	accountID, err := h.accounts.LookupOrCreate(ctx, txn.Institution, txn.LastFour)
 	if err != nil {
-		log.ErrorContext(ctx, "failed to resolve JN-66 account",
+		log.ErrorContext(ctx, "learned handler: failed to resolve JN-66 account",
 			slog.String("institution", txn.Institution),
 			slog.String("last_four", txn.LastFour),
 			slog.Any("error", err),
@@ -81,11 +91,11 @@ func (h *Handler) Handle(ctx context.Context, email string, msg *gmail.Message) 
 		},
 	})
 	if err != nil {
-		log.ErrorContext(ctx, "failed to import transaction to JN-66", slog.Any("error", err))
+		log.ErrorContext(ctx, "learned handler: failed to import to JN-66", slog.Any("error", err))
 		return err
 	}
 
-	log.InfoContext(ctx, "transaction recorded",
+	log.InfoContext(ctx, "learned handler: transaction recorded",
 		slog.String("institution", txn.Institution),
 		slog.String("last_four", txn.LastFour),
 		slog.String("merchant", txn.Merchant),

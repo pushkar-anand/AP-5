@@ -1,0 +1,35 @@
+{{template "base.html" .}}
+{{define "title"}}Review Queue — AP-5{{end}}
+{{define "content"}}
+<h1>Review Queue <span class="badge">{{len .Items}}</span></h1>
+{{if .Items}}
+<table>
+  <thead>
+    <tr>
+      <th>Subject</th>
+      <th>Account</th>
+      <th>Suggested Type</th>
+      <th>Queued</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Items}}
+    <tr>
+      <td><a href="/review/{{.ID}}">{{.Subject}}</a></td>
+      <td>{{.Account}}</td>
+      <td><span class="badge">{{.SuggestedType}}</span></td>
+      <td class="time">{{.QueuedAt.Format "2006-01-02 15:04"}}</td>
+      <td>
+        <form method="POST" action="/review/{{.ID}}/ignore" style="display:inline">
+          <button class="btn btn-ghost" type="submit" onclick="return confirm('Ignore this email?')">Ignore</button>
+        </form>
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="empty">No emails pending review. 🎉</div>
+{{end}}
+{{end}}

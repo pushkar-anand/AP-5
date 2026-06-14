@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/pushkar-anand/ap-5/internal/gmail"
+	"github.com/pushkar-anand/ap-5/internal/review"
 	"github.com/pushkar-anand/ap-5/internal/router"
 )
 
@@ -25,6 +26,15 @@ type mockHandler struct {
 
 func (m *mockHandler) Handle(_ context.Context, _ string, msg *gmail.Message) error {
 	m.calls = append(m.calls, msg)
+	return nil
+}
+
+type mockQueuer struct {
+	items []review.Item
+}
+
+func (m *mockQueuer) Add(item review.Item) error {
+	m.items = append(m.items, item)
 	return nil
 }
 
@@ -50,17 +60,46 @@ func TestRoute_DispatchesToRegisteredHandler(t *testing.T) {
 	}
 }
 
-func TestRoute_UnknownTypeIsDropped(t *testing.T) {
+func TestRoute_UnknownType_QueuesToReviewQueue(t *testing.T) {
+	classifier := &mockClassifier{result: "other"}
+	h := &mockHandler{}
+	q := &mockQueuer{}
+
+	r := newRouter(classifier)
+	r.Register("credit_card_transaction", h)
+	r.SetQueuer(q)
+
+	msg := &gmail.Message{ID: "msg42", Subject: "Newsletter", Body: "Check our offers"}
+	r.Route(context.Background(), "user@gmail.com", msg)
+
+	if len(h.calls) != 0 {
+		t.Errorf("handler should not be called for unhandled type, called %d times", len(h.calls))
+	}
+	if len(q.items) != 1 {
+		t.Fatalf("queuer should have 1 item, got %d", len(q.items))
+	}
+	if q.items[0].ID != "msg42" {
+		t.Errorf("queued item ID = %q, want msg42", q.items[0].ID)
+	}
+	if q.items[0].SuggestedType != "other" {
+		t.Errorf("queued item SuggestedType = %q, want other", q.items[0].SuggestedType)
+	}
+}
+
+func TestRoute_UnknownType_NoQueuer_Drops(t *testing.T) {
 	classifier := &mockClassifier{result: "other"}
 	h := &mockHandler{}
 
 	r := newRouter(classifier)
 	r.Register("credit_card_transaction", h)
+	// No queuer set — should not panic.
 
-	r.Route(context.Background(), "user@gmail.com", &gmail.Message{Subject: "Newsletter"})
-
+	err := r.Route(context.Background(), "user@gmail.com", &gmail.Message{Subject: "Newsletter"})
+	if err != nil {
+		t.Errorf("Route should not error for unhandled type without queuer: %v", err)
+	}
 	if len(h.calls) != 0 {
-		t.Errorf("handler should not be called for 'other' type, called %d times", len(h.calls))
+		t.Errorf("handler should not be called for unhandled type, called %d times", len(h.calls))
 	}
 }
 
@@ -100,17 +139,35 @@ func TestRoute_MultipleHandlers(t *testing.T) {
 	}
 }
 
-func TestRoute_UnregisteredType_NoHandlerCalled(t *testing.T) {
+func TestRoute_UnregisteredType_QueuesForReview(t *testing.T) {
 	classifier := &mockClassifier{result: "unknown_type"}
 	h := &mockHandler{}
+	q := &mockQueuer{}
 
 	r := newRouter(classifier)
 	r.Register("credit_card_transaction", h)
+	r.SetQueuer(q)
 
-	// Should not panic or call any handler
-	r.Route(context.Background(), "user@gmail.com", &gmail.Message{Subject: "Weird email"})
+	r.Route(context.Background(), "user@gmail.com", &gmail.Message{ID: "u1", Subject: "Weird email"})
 
 	if len(h.calls) != 0 {
 		t.Errorf("handler should not be called for unregistered type, called %d times", len(h.calls))
+	}
+	if len(q.items) != 1 {
+		t.Fatalf("expected 1 queued item, got %d", len(q.items))
+	}
+	if q.items[0].SuggestedType != "unknown_type" {
+		t.Errorf("SuggestedType = %q, want unknown_type", q.items[0].SuggestedType)
+	}
+}
+
+func TestRegisterAndRegisteredTypes(t *testing.T) {
+	r := newRouter(&mockClassifier{result: "other"})
+	r.Register("credit_card_transaction", &mockHandler{})
+	r.Register("bank_account_transaction", &mockHandler{})
+
+	types := r.RegisteredTypes()
+	if len(types) != 2 {
+		t.Fatalf("RegisteredTypes len = %d, want 2", len(types))
 	}
 }

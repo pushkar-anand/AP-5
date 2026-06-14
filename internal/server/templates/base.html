@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{block "title" .}}AP-5{{end}}</title>
+<script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; font-size: 14px; color: #1a1a1a; background: #f5f5f5; }
+  nav { background: #1a1a1a; color: #fff; padding: 12px 24px; display: flex; gap: 24px; align-items: center; }
+  nav a { color: #ccc; text-decoration: none; }
+  nav a:hover { color: #fff; }
+  nav .brand { font-weight: 600; color: #fff; font-size: 15px; }
+  main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 20px; }
+  h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #eee; }
+  th { background: #f8f8f8; font-weight: 600; font-size: 12px; text-transform: uppercase; color: #666; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafafa; }
+  a { color: #0066cc; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #e8f0fe; color: #1a56db; }
+  .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 20px; margin-bottom: 16px; }
+  .label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: #888; margin-bottom: 4px; }
+  .value { font-size: 14px; margin-bottom: 12px; }
+  pre { background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow-y: auto; }
+  form { margin-top: 8px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px; margin-top: 12px; }
+  input[type=text], select, textarea { width: 100%; padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 6px; font-size: 14px; font-family: inherit; }
+  textarea { min-height: 100px; resize: vertical; }
+  .btn { display: inline-block; padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-primary { background: #0066cc; color: #fff; }
+  .btn-primary:hover { background: #0052a3; }
+  .btn-danger { background: #dc2626; color: #fff; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-ghost { background: #e5e7eb; color: #374151; }
+  .btn-ghost:hover { background: #d1d5db; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; color: #555; margin: 20px 0 10px; border-top: 1px solid #eee; padding-top: 16px; }
+  .empty { color: #888; padding: 32px; text-align: center; }
+  .alert { padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
+  .alert-success { background: #d1fae5; color: #065f46; }
+  .alert-error { background: #fee2e2; color: #991b1b; }
+  .time { color: #888; font-size: 12px; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="brand">AP-5</span>
+  <a href="/review">Review Queue</a>
+  <a href="/rules">Learned Rules</a>
+  <a href="/healthz">Health</a>
+</nav>
+<main>
+{{block "content" .}}{{end}}
+</main>
+</body>
+</html>

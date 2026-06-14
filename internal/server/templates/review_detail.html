@@ -1,0 +1,73 @@
+{{template "base.html" .}}
+{{define "title"}}Review Email — AP-5{{end}}
+{{define "content"}}
+<h1>Review Email</h1>
+
+{{if .Flash}}
+<div class="alert {{if .FlashError}}alert-error{{else}}alert-success{{end}}">{{.Flash}}</div>
+{{end}}
+
+<div class="card">
+  <div class="label">Subject</div>
+  <div class="value">{{.Item.Subject}}</div>
+  <div class="label">Account</div>
+  <div class="value">{{.Item.Account}}</div>
+  <div class="label">LLM Suggested Type</div>
+  <div class="value"><span class="badge">{{.Item.SuggestedType}}</span></div>
+  <div class="label">Queued At</div>
+  <div class="value time">{{.Item.QueuedAt.Format "2006-01-02 15:04:05"}}</div>
+  <div class="label">Body</div>
+  <pre>{{.Item.Body}}</pre>
+</div>
+
+<!-- Action 1: Reclassify + Reprocess with existing handler -->
+<div class="section-title">Option 1 — Reclassify &amp; Reprocess</div>
+<div class="card">
+  <p style="margin-bottom:12px;color:#555;font-size:13px">LLM misclassified this? Pick the correct handler and reprocess it now.</p>
+  <form method="POST" action="/review/{{.Item.ID}}/reprocess">
+    <label>Handler</label>
+    <select name="category" required>
+      {{range .RegisteredTypes}}
+      <option value="{{.}}" {{if eq . $.Item.SuggestedType}}selected{{end}}>{{.}}</option>
+      {{end}}
+    </select>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-primary" type="submit">Reprocess</button>
+    </div>
+  </form>
+</div>
+
+<!-- Action 2: Teach a new rule -->
+<div class="section-title">Option 2 — Teach New Rule</div>
+<div class="card">
+  <p style="margin-bottom:12px;color:#555;font-size:13px">Define how to extract and handle this type of email in the future.</p>
+  <form method="POST" action="/review/{{.Item.ID}}/teach">
+    <label>Category Name</label>
+    <input type="text" name="category" value="{{.Item.SuggestedType}}" required placeholder="e.g. bank_account_transaction">
+
+    <label>Extraction Prompt</label>
+    <textarea name="extraction_prompt" required placeholder="Extract transaction details from this email. Return JSON with fields:&#10;- institution: bank name&#10;- last_four: last 4 digits of account&#10;- amount_paise: amount in paise (integer)&#10;- merchant: payee or merchant name&#10;- date: YYYY-MM-DD&#10;- direction: &quot;debit&quot; or &quot;credit&quot;&#10;&#10;If you cannot extract all required fields, return {&quot;error&quot;: &quot;reason&quot;}."></textarea>
+
+    <label>Action</label>
+    <select name="action">
+      <option value="import_transaction">Import transaction to JN-66</option>
+      <option value="log_only">Log only (no import)</option>
+    </select>
+
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-primary" type="submit">Teach &amp; Process Now</button>
+    </div>
+  </form>
+</div>
+
+<!-- Action 3: Ignore -->
+<div class="section-title">Option 3 — Ignore</div>
+<div class="card">
+  <p style="margin-bottom:12px;color:#555;font-size:13px">Remove from queue without creating any rule.</p>
+  <form method="POST" action="/review/{{.Item.ID}}/ignore">
+    <button class="btn btn-ghost" type="submit">Ignore This Email</button>
+  </form>
+</div>
+
+<p style="margin-top:16px"><a href="/review">← Back to queue</a></p>
+{{end}}
