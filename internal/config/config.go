@@ -13,7 +13,7 @@ import (
 )
 
 type Config struct {
-	Accounts map[string]Account `koanf:"accounts" validate:"required,min=1"`
+	Accounts map[string]Account `koanf:"accounts" validate:"required,min=1,dive"`
 	Server   Server             `koanf:"server"`
 	JN66     JN66               `koanf:"jn66"`
 	Ollama   Ollama             `koanf:"ollama"`
