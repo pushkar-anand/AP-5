@@ -6,8 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 
 	"github.com/pushkar-anand/ap-5/internal/config"
@@ -81,8 +83,9 @@ func serveCmd(args []string) {
 		}
 	}()
 
-	// Start one poller per account.
-	for name, account := range cfg.Accounts {
+	// Start one poller per account (sorted for deterministic startup order).
+	for _, name := range slices.Sorted(maps.Keys(cfg.Accounts)) {
+		account := cfg.Accounts[name]
 		email := account.Email
 
 		ts, err := oauthMgr.TokenSource(ctx, email)

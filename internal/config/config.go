@@ -13,7 +13,7 @@ import (
 )
 
 type Config struct {
-	Accounts map[string]Account `koanf:"accounts"`
+	Accounts map[string]Account `koanf:"accounts" validate:"required,min=1"`
 	Server   Server             `koanf:"server"`
 	JN66     JN66               `koanf:"jn66"`
 	Ollama   Ollama             `koanf:"ollama"`
@@ -51,7 +51,7 @@ type Gmail struct {
 
 type Account struct {
 	Email     string `koanf:"email"      validate:"required,email"`
-	JN66Token string `koanf:"jn66_token"`
+	JN66Token string `koanf:"jn66_token" validate:"required"`
 }
 
 type Logging struct {
